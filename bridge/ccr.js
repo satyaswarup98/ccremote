@@ -85,6 +85,38 @@ function editHooks(add) {
   return backup;
 }
 
+// VS Code shortcut the bridge presses to run "Claude Code: Focus input" before typing a phone message.
+const VSCODE_KEYBINDINGS = path.join(os.homedir(), 'Library/Application Support/Code/User/keybindings.json');
+const FOCUS_BINDING = '{ "key": "ctrl+alt+shift+cmd+k", "command": "claude-vscode.focus" }';
+
+function addVSCodeKeybinding() {
+  if (!fs.existsSync('/Applications/Visual Studio Code.app')) return 'no VS Code';
+  fs.mkdirSync(path.dirname(VSCODE_KEYBINDINGS), { recursive: true });
+  if (!fs.existsSync(VSCODE_KEYBINDINGS)) {
+    fs.writeFileSync(VSCODE_KEYBINDINGS, `// Added by CC Remote: lets the bridge put the cursor in Claude Code's prompt box\n// before typing a message sent from the phone. Safe to remove (CC Remote then queues instead).\n[\n  ${FOCUS_BINDING}\n]\n`);
+    return 'added';
+  }
+  const text = fs.readFileSync(VSCODE_KEYBINDINGS, 'utf8');
+  if (text.includes('ctrl+alt+shift+cmd+k')) return 'present';
+  // The file is JSON with comments: insert right after the opening bracket (outside any comment),
+  // so the user's own entries and comments stay exactly as they are.
+  let open = -1;
+  for (let i = 0, inLine = false, inBlock = false; i < text.length; i++) {
+    const two = text.slice(i, i + 2);
+    if (inLine) { if (text[i] === '\n') inLine = false; continue; }
+    if (inBlock) { if (two === '*/') { inBlock = false; i++; } continue; }
+    if (two === '//') { inLine = true; i++; continue; }
+    if (two === '/*') { inBlock = true; i++; continue; }
+    if (text[i] === '[') { open = i; break; }
+  }
+  if (open < 0) return 'unreadable';
+  const rest = text.slice(open + 1);
+  const empty = /^\s*(\/\/[^\n]*\n\s*|\/\*[\s\S]*?\*\/\s*)*\]/.test(rest);
+  fs.writeFileSync(`${VSCODE_KEYBINDINGS}.ccremote-backup`, text);
+  fs.writeFileSync(VSCODE_KEYBINDINGS, `${text.slice(0, open + 1)}\n  // Added by CC Remote (focus Claude's prompt box before typing a phone message)\n  ${FOCUS_BINDING}${empty ? '' : ','}${rest}`);
+  return 'added';
+}
+
 function launchctl(...args) {
   try { execFileSync('/bin/launchctl', args, { stdio: 'ignore' }); return true; } catch { return false; }
 }
@@ -147,6 +179,8 @@ async function install() {
     process.exit(1);
   }
   console.log(`${c.g('✓')} Bridge running in the background (starts at login)`);
+  const kb = addVSCodeKeybinding();
+  if (kb === 'added' || kb === 'present') console.log(`${c.g('✓')} VS Code shortcut for typing phone messages into Claude ${c.d(`(${VSCODE_KEYBINDINGS})`)}`);
 
   // Small wrapper scripts rather than symlinks, so ccr runs with the same node that installed it
   // (which may be a private copy that isn't on PATH).

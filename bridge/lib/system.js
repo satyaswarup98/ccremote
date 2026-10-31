@@ -257,7 +257,17 @@ export async function vscodeSubmit({ sessionId, cwd, text, title }) {
   const saved = await clipboardGet();
   try {
     await clipboardSet(text);
-    await run('/usr/bin/osascript', ['-e', 'tell application "System Events"\nkeystroke "v" using command down\ndelay 0.35\nkey code 36\nend tell'], { timeout: 8000 });
+    // Ctrl+Opt+Shift+Cmd+K runs "Claude Code: Focus input" (bound in VS Code's keybindings.json by
+    // CC Remote), so the paste lands in the visible chat's prompt box rather than wherever focus was.
+    await run('/usr/bin/osascript', ['-e', [
+      'tell application "System Events"',
+      'keystroke "k" using {control down, option down, shift down, command down}',
+      'delay 0.4',
+      'keystroke "v" using command down',
+      'delay 0.5',
+      'key code 36',
+      'end tell',
+    ].join('\n')], { timeout: 8000 });
   } catch (e) {
     throw fail('accessibility', String(e.stderr || e.message));
   } finally {
