@@ -22,6 +22,8 @@ const DEFAULT_CONFIG = {
   // how long a finished turn waits for a message from the phone while away
   // While away, a finished turn waits this long for a reply from the phone (works with the screen locked).
   stopHoldSec: 3540,
+  // While the Mac is locked, a finished turn waits up to 12 hours for a reply (released when you unlock).
+  lockedHoldSec: 43140,
   // Keep the Mac from sleeping while it's on power, so the phone can reach it (caffeinate -s).
   keepAwakeOnPower: true,
   // Send to VS Code waits for a pause this long in keyboard/mouse input (so it doesn't mix with your

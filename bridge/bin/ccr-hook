@@ -3,7 +3,7 @@
 # If the bridge is not running, curl fails fast and the hook is a silent no-op.
 S="$HOME/.ccremote/hook.secret"
 [ -r "$S" ] || exit 0
-/usr/bin/curl -s --fail -m 3700 -X POST --data-binary @- \
+/usr/bin/curl -s --fail -m 43300 -X POST --data-binary @- \
   -H "Content-Type: application/json" \
   -H "X-Secret: $(cat "$S")" \
   -H "X-Tmux-Pane: ${TMUX_PANE:-}" \

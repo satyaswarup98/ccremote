@@ -12,7 +12,7 @@ import {
   ensureStateDir, loadConfig, saveConfig, readSecret, certFingerprint,
 } from './lib/paths.js';
 import { TranscriptTail, toolSummary, PHONE_PREFIX } from './lib/transcript.js';
-import { macIdleSeconds, findClaudeBinary, term, hostName, vscodeSubmit, vscodeWindowTitles, checkPermissions } from './lib/system.js';
+import { macIdleSeconds, macLocked, findClaudeBinary, term, hostName, vscodeSubmit, vscodeWindowTitles, checkPermissions } from './lib/system.js';
 
 ensureStateDir();
 let config = loadConfig();
@@ -72,17 +72,22 @@ function deviceForToken(token) {
 
 let idleSec = 0;
 let away = false;
+let locked = false;   // Mac screen locked
 
 function computeAway() {
   // Holding a prompt only makes sense once there is a phone to answer it.
   if (!devices.length) return false;
   if (config.awayMode === 'on') return true;
   if (config.awayMode === 'off') return false;
-  return idleSec >= config.idleThresholdSec;
+  // A locked Mac means nobody is at it.
+  return locked || idleSec >= config.idleThresholdSec;
 }
 
 async function tickIdle() {
   idleSec = await macIdleSeconds();
+  const wasLocked = locked;
+  locked = await macLocked();
+  if (locked !== wasLocked) { log(locked ? 'Mac locked' : 'Mac unlocked'); broadcastState(); }
   const was = away;
   away = computeAway();
   if (was && !away && config.awayMode === 'auto' && idleSec < 5) {
@@ -531,7 +536,7 @@ async function handleHook(ev, headers, abort) {
       const reply = await holdRequest({
         kind: 'stop', sessionId: s.id, project: s.project,
         summary: (s.lastMessage ?? 'Claude finished.').slice(0, 300),
-      }, config.stopHoldSec * 1000, abort);
+      }, (locked ? config.lockedHoldSec : config.stopHoldSec) * 1000, abort);
       if (!reply) return null;
       s.status = 'working';
       s.activity = 'Thinking…';
@@ -713,7 +718,7 @@ function snapshot() {
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .map(sessionView);
   return {
-    t: 'state', mac: HOST, away, awayMode: config.awayMode, idleThresholdSec: config.idleThresholdSec,
+    t: 'state', mac: HOST, away, locked, awayMode: config.awayMode, idleThresholdSec: config.idleThresholdSec,
     ntfyTopic: config.ntfyTopic, ntfyServer: config.ntfyServer,
     port: config.port, addresses: lanAddresses().map(a => ({ address: a.address, kind: a.kind })),
     sessions: list,
@@ -882,7 +887,7 @@ async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
   } catch (e) {
     vscodeSends.delete(s.id);
     const why = {
-      locked: "The Mac's screen is locked, so VS Code can't be typed into.",
+      locked: "The Mac is locked, and macOS doesn't let anything type into apps behind the lock screen. Replies to a turn that's waiting for you still work while it's locked.",
       'no-vscode': "VS Code isn't installed on this Mac.",
       'not-visible': "CC Remote couldn't tell which VS Code window has this chat, so it didn't open anything. On the Mac, click this chat's tab once (so it's the visible tab in its window), then send again.",
       'wrong-tab': `VS Code showed a different chat ("${e.message}"), so nothing was typed. On the Mac, open this session's tab once, then try again.`,
