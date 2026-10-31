@@ -5,6 +5,7 @@ struct SessionsView: View {
     @State private var path: [String] = []
     @State private var showSettings = false
     @State private var showNew = false
+    @State private var showAddMac = false
     @State private var activeRequest: PendingRequest?
 
     private var active: [SessionInfo] { client.sessions.filter { $0.status != .ended } }
@@ -42,6 +43,15 @@ struct SessionsView: View {
             .background(Theme.background)
             .refreshable { client.connect() }
             .navigationTitle(client.pairing?.macName ?? "CC Remote")
+            .toolbarTitleMenu {
+                ForEach(client.pairings) { m in
+                    Button { client.switchTo(m.id) } label: {
+                        Label(m.macName, systemImage: m.id == client.pairing?.id ? "checkmark" : "laptopcomputer")
+                    }
+                }
+                Divider()
+                Button { showAddMac = true } label: { Label("Add another Mac…", systemImage: "plus") }
+            }
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -56,6 +66,11 @@ struct SessionsView: View {
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showNew) { NewSessionSheet() }
+        .sheet(isPresented: $showAddMac) {
+            PairingView(onPaired: { showAddMac = false })
+                .background(Theme.background)
+                .presentationDragIndicator(.visible)
+        }
         .sheet(item: $activeRequest) { req in RequestSheet(request: req) }
         .onChange(of: client.openSessionId) { _, id in
             guard let id else { return }

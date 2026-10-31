@@ -626,7 +626,7 @@ async function notifyPhone(info) {
         message: config.ntfyDetail ? body : 'Open CC Remote',
         tags: [meta.tag],
         priority: meta.priority,
-        click: `ccremote://session/${info.sessionId}`,
+        click: `ccremote://session/${info.sessionId}?mac=${FINGERPRINT.slice(0, 16)}`,
       }),
       signal: AbortSignal.timeout(5000),
     });

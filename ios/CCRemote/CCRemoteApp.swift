@@ -16,10 +16,15 @@ struct CCRemoteApp: App {
                     client.connect()
                 }
                 .onOpenURL { url in
-                    // ccremote://session/<id>  (from ntfy notification taps)
-                    if url.host() == "session", let id = url.pathComponents.dropFirst().first {
-                        client.openSessionId = id
+                    // ccremote://session/<id>?mac=<cert prefix>  (from ntfy notification taps)
+                    guard url.host() == "session", let id = url.pathComponents.dropFirst().first else { return }
+                    let mac = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                        .queryItems?.first { $0.name == "mac" }?.value
+                    if let mac, let target = client.pairings.first(where: { $0.fingerprint.hasPrefix(mac) }),
+                       target.id != client.pairing?.id {
+                        client.switchTo(target.id)
                     }
+                    client.openSessionId = id
                 }
         }
         .onChange(of: phase) { _, now in

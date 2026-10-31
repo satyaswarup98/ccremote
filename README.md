@@ -32,6 +32,8 @@ Needs: macOS with [Homebrew](https://brew.sh) and Claude Code. Building the iPho
 
 Running the install command again updates to the latest version.
 
+**Several Macs:** run the install (or `./setup.sh bridge`) on each Mac, then on the phone tap the Mac's name at the top of the session list → **Add another Mac…** and enter that Mac's `ccr pair` code. Tap the name again to switch. With the app closed, each Mac sends its own ntfy notifications (subscribe to each Mac's topic in Settings); tapping one opens the right Mac.
+
 The script asks for your Apple ID team (from Xcode → Settings → Accounts) and an app ID like `com.yourname.ccremote`, and remembers both in `~/.ccremote/app.json`.
 
 ## Mac commands

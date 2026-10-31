@@ -118,13 +118,16 @@ struct TranscriptItem: Decodable, Identifiable, Hashable {
     let fromPhone: Bool?
 }
 
-struct Pairing: Codable, Equatable {
+struct Pairing: Codable, Equatable, Identifiable {
     var host: String
     var port: Int
     var token: String
     var fingerprint: String
     var macName: String
     var deviceId: String
+
+    // The certificate fingerprint identifies a Mac's bridge.
+    var id: String { fingerprint }
 
     var securityCode: String {
         let f = Array(fingerprint)

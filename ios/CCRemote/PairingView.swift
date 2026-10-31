@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct PairingView: View {
+    // Set when shown as the "Add another Mac" sheet; called after pairing succeeds.
+    var onPaired: (() -> Void)? = nil
     @Environment(BridgeClient.self) private var client
     @State private var discovery = Discovery()
     @State private var selected: Discovery.Found?
@@ -175,6 +177,7 @@ struct PairingView: View {
         Task {
             do {
                 try await client.pair(host: t.host, port: t.port, code: code)
+                onPaired?()
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             } catch {
                 self.error = (error as? LocalizedError)?.errorDescription ?? "Couldn't reach the Mac: \(error.localizedDescription)"

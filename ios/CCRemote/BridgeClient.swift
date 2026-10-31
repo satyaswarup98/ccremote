@@ -7,7 +7,19 @@ import UIKit
 final class BridgeClient {
     enum Connection: Equatable { case disconnected, connecting, connected, failed(String) }
 
-    private(set) var pairing: Pairing? = PairingStore.load()
+    private(set) var pairings: [Pairing]
+    private(set) var activeId: String?
+    var pairing: Pairing? { pairings.first { $0.id == activeId } ?? pairings.first }
+
+    init() {
+        let saved = PairingStore.load()
+        pairings = saved.items
+        activeId = saved.active
+    }
+
+    private func persist() {
+        PairingStore.save(.init(active: pairing?.id, items: pairings))
+    }
     private(set) var connection: Connection = .disconnected
     private(set) var state: BridgeState?
     private(set) var items: [TranscriptItem] = []
@@ -68,24 +80,46 @@ final class BridgeClient {
         }
         let p = Pairing(host: host, port: port, token: token, fingerprint: fp,
                         macName: obj["macName"] as? String ?? "Mac", deviceId: obj["deviceId"] as? String ?? "")
-        PairingStore.save(p)
-        pairing = p
+        // Re-pairing the same Mac replaces its old entry.
+        pairings.removeAll { $0.id == p.id }
+        pairings.append(p)
+        switchTo(p.id)
+    }
+
+    func switchTo(_ id: String) {
+        guard pairings.contains(where: { $0.id == id }) else { return }
+        disconnect()
+        activeId = id
+        persist()
+        state = nil
+        items = []
+        screen = ""
+        subscribed = nil
+        seenPending = []
         connect()
     }
 
-    func unpair() {
-        disconnect()
-        PairingStore.clear()
-        pairing = nil
-        state = nil
+    // Forgets one Mac on this phone (default: the active one) and moves to the next.
+    func unpair(_ id: String? = nil) {
+        let target = id ?? pairing?.id
+        let wasActive = target == pairing?.id
+        pairings.removeAll { $0.id == target }
+        if wasActive {
+            disconnect()
+            state = nil
+            activeId = pairings.first?.id
+            persist()
+            if pairing != nil { connect() }
+        } else {
+            persist()
+        }
     }
 
     func updateHost(_ host: String, port: Int) {
-        guard var p = pairing else { return }
-        p.host = host
-        p.port = port
-        PairingStore.save(p)
-        pairing = p
+        guard let i = pairings.firstIndex(where: { $0.id == pairing?.id }) else { return }
+        pairings[i].host = host
+        pairings[i].port = port
+        persist()
         disconnect()
         connect()
     }

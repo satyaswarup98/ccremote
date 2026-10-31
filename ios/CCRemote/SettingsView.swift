@@ -5,13 +5,14 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @State private var host = ""
-    @State private var confirmUnpair = false
+    @State private var removing: Pairing?
+    @State private var showAddMac = false
 
     var body: some View {
         NavigationStack {
             List {
                 if let p = client.pairing {
-                    Section("Mac") {
+                    Section("This Mac") {
                         LabeledContent("Name", value: p.macName)
                         LabeledContent("Status", value: statusText)
                         LabeledContent("Security code") { Text(p.securityCode).font(.body.monospaced()) }
@@ -58,9 +59,28 @@ struct SettingsView: View {
                 } header: { Text("Away mode") }
 
                 Section {
-                    Button("Unpair this iPhone", role: .destructive) { confirmUnpair = true }
+                    ForEach(client.pairings) { m in
+                        HStack {
+                            Image(systemName: m.id == client.pairing?.id ? "checkmark.circle.fill" : "laptopcomputer")
+                                .foregroundStyle(m.id == client.pairing?.id ? Theme.accent : Theme.secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(m.macName)
+                                Text("\(m.host):\(String(m.port))").font(.caption.monospaced()).foregroundStyle(Theme.secondary)
+                            }
+                            Spacer()
+                            if m.id != client.pairing?.id {
+                                Button("Switch") { client.switchTo(m.id); dismiss() }.font(.subheadline.weight(.semibold))
+                            }
+                        }
+                        .swipeActions {
+                            Button("Remove", role: .destructive) { removing = m }
+                        }
+                    }
+                    Button { showAddMac = true } label: { Label("Add another Mac", systemImage: "plus") }
+                } header: {
+                    Text("Macs on this iPhone")
                 } footer: {
-                    Text("To revoke from the Mac instead: ccr unpair all")
+                    Text("Swipe left on a Mac to remove it from this iPhone. To revoke this iPhone from a Mac instead, run on that Mac: ccr unpair all")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -70,9 +90,21 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-            .confirmationDialog("Unpair from \(client.pairing?.macName ?? "Mac")?", isPresented: $confirmUnpair, titleVisibility: .visible) {
-                Button("Unpair", role: .destructive) { client.unpair(); dismiss() }
+            .confirmationDialog("Remove \(removing?.macName ?? "Mac") from this iPhone?",
+                                isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+                                titleVisibility: .visible) {
+                Button("Remove", role: .destructive) {
+                    if let m = removing { client.unpair(m.id) }
+                    removing = nil
+                    if client.pairing == nil { dismiss() }
+                }
             }
+            .sheet(isPresented: $showAddMac) {
+                PairingView(onPaired: { showAddMac = false; dismiss() })
+                    .background(Theme.background)
+                    .presentationDragIndicator(.visible)
+            }
+            .onChange(of: client.pairing?.id) { _, _ in if let p = client.pairing { host = "\(p.host):\(p.port)" } }
             .onAppear { if let p = client.pairing { host = "\(p.host):\(p.port)" } }
         }
     }
