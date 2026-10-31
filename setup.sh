@@ -22,9 +22,29 @@ ask() { local q="$1" def="${2:-}" a; read -r -p "  $q${def:+ [$def]}: " a </dev/
 
 # ---------- checks ----------
 
+# Homebrew may be installed but not on PATH yet (fresh install, new shell).
+load_brew() {
+  local b
+  for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+    [ -x "$b" ] && { eval "$("$b" shellenv)"; return 0; }
+  done
+  return 1
+}
+
+install_brew() {
+  step "Installing Homebrew (the Mac's package manager)"
+  info "It asks for your Mac password (typing is invisible), then 'Press RETURN' to continue."
+  info "It also installs Apple's command line tools, so this can take 5–15 minutes."
+  /bin/bash -c "$(curl -fsSL --retry 5 --retry-all-errors https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" </dev/tty
+  load_brew || die "Homebrew didn't finish installing. Run the command again."
+  # Make brew available in new Terminal windows too.
+  local line="eval \"\$($(command -v brew) shellenv)\""
+  grep -qsF "$line" "$HOME/.zprofile" || echo "$line" >> "$HOME/.zprofile"
+}
+
 check_mac() {
   [ "$(uname)" = "Darwin" ] || die "This needs macOS."
-  command -v brew >/dev/null || die "Homebrew is missing. Install it from https://brew.sh, then re-run ./setup.sh"
+  command -v brew >/dev/null || load_brew || install_brew
   ok "macOS $(sw_vers -productVersion) on $(uname -m), Homebrew found"
 }
 
