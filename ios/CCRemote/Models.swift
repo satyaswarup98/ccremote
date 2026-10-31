@@ -7,6 +7,8 @@ struct BridgeState: Decodable {
     let idleThresholdSec: Int
     let ntfyTopic: String?
     let ntfyServer: String?
+    let port: Int?
+    let addresses: [BridgeAddress]?
     let sessions: [SessionInfo]
     let pending: [PendingRequest]
 }
@@ -118,6 +120,11 @@ struct TranscriptItem: Decodable, Identifiable, Hashable {
     let fromPhone: Bool?
 }
 
+struct BridgeAddress: Decodable, Hashable {
+    let address: String
+    let kind: String          // lan | tailscale
+}
+
 struct Pairing: Codable, Equatable, Identifiable {
     var host: String
     var port: Int
@@ -125,6 +132,15 @@ struct Pairing: Codable, Equatable, Identifiable {
     var fingerprint: String
     var macName: String
     var deviceId: String
+    // Every address the Mac has reported (Wi-Fi and Tailscale), tried in turn when one fails.
+    var hosts: [String]? = nil
+
+    var tailscaleHost: String? {
+        hosts?.first { h in
+            let p = h.split(separator: ".").compactMap { Int($0) }
+            return p.count == 4 && p[0] == 100 && (64...127).contains(p[1])
+        }
+    }
 
     // The certificate fingerprint identifies a Mac's bridge.
     var id: String { fingerprint }

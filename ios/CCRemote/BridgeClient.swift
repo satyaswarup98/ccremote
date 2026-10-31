@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import UIKit
+import Network
 
 @MainActor
 @Observable
@@ -15,6 +16,43 @@ final class BridgeClient {
         let saved = PairingStore.load()
         pairings = saved.items
         activeId = saved.active
+        // Moving between Wi-Fi and mobile data kills the socket; reconnect right away on the new network.
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            let kind = path.usesInterfaceType(.wifi) ? "wifi" : path.usesInterfaceType(.cellular) ? "cellular" : "other"
+            Task { @MainActor in self?.networkChanged(satisfied: path.status == .satisfied, kind: kind) }
+        }
+        pathMonitor.start(queue: .main)
+    }
+
+    private let pathMonitor = NWPathMonitor()
+    private var networkKind: String?
+    private var candidateIndex = 0
+    private var connectingHost: String?
+
+    private func networkChanged(satisfied: Bool, kind: String) {
+        defer { networkKind = kind }
+        guard satisfied, wantConnection, networkKind != nil, networkKind != kind || connection != .connected else { return }
+        socket?.cancel(with: .goingAway, reason: nil)
+        socket = nil
+        session?.invalidateAndCancel()
+        session = nil
+        candidateIndex = 0
+        retry = 0
+        connect()
+    }
+
+    // Last address that worked first, then every other address the Mac reported.
+    private func candidates(_ p: Pairing) -> [String] {
+        var out = [p.host]
+        for h in p.hosts ?? [] where !out.contains(h) { out.append(h) }
+        return out
+    }
+
+    private func updateActive(_ change: (inout Pairing) -> Void) {
+        guard let i = pairings.firstIndex(where: { $0.id == pairing?.id }) else { return }
+        var p = pairings[i]
+        change(&p)
+        if p != pairings[i] { pairings[i] = p; persist() }
     }
 
     private func persist() {
@@ -136,10 +174,13 @@ final class BridgeClient {
         wantConnection = true
         guard socket == nil else { return }
         connection = .connecting
+        let hosts = candidates(p)
+        let host = hosts[candidateIndex % hosts.count]
+        connectingHost = host
         let s = URLSession(configuration: .default, delegate: PinningDelegate(expected: p.fingerprint), delegateQueue: nil)
-        var req = URLRequest(url: URL(string: "wss://\(Self.urlHost(p.host)):\(p.port)/ws")!)
+        var req = URLRequest(url: URL(string: "wss://\(Self.urlHost(host)):\(p.port)/ws")!)
         req.setValue("Bearer \(p.token)", forHTTPHeaderField: "Authorization")
-        req.timeoutInterval = 8
+        req.timeoutInterval = 5
         let task = s.webSocketTask(with: req)
         session = s
         socket = task
@@ -164,7 +205,13 @@ final class BridgeClient {
                 guard let self, self.socket === task else { return }
                 switch result {
                 case .success(let message):
-                    if self.connection != .connected { self.connection = .connected; self.retry = 0 }
+                    if self.connection != .connected {
+                        self.connection = .connected
+                        self.retry = 0
+                        self.candidateIndex = 0
+                        // Remember which address worked, so it's tried first next time.
+                        if let h = self.connectingHost { self.updateActive { $0.host = h } }
+                    }
                     if case .string(let text) = message { self.handle(Data(text.utf8)) }
                     if case .data(let data) = message { self.handle(data) }
                     self.receive(task)
@@ -185,6 +232,14 @@ final class BridgeClient {
         }
         connection = .failed(Self.describe(error))
         guard wantConnection else { return }
+        // Try the Mac's other addresses (e.g. Tailscale when away from home Wi-Fi) before backing off.
+        if let p = pairing, candidateIndex + 1 < candidates(p).count {
+            candidateIndex += 1
+            connection = .connecting
+            connect()
+            return
+        }
+        candidateIndex = 0
         retry += 1
         let delay = min(Double(1 << min(retry, 4)), 15)
         Task { @MainActor in
@@ -216,6 +271,9 @@ final class BridgeClient {
             let newOnes = s.pending.filter { !seenPending.contains($0.id) }
             seenPending = Set(s.pending.map(\.id))
             state = s
+            if let addrs = s.addresses?.map(\.address), !addrs.isEmpty {
+                updateActive { $0.hosts = addrs }
+            }
             if !newOnes.isEmpty { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
         case "items":
             guard let m = try? dec.decode(ItemsMsg.self, from: data), m.sessionId == subscribed else { return }

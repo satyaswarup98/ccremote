@@ -695,6 +695,7 @@ function snapshot() {
   return {
     t: 'state', mac: HOST, away, awayMode: config.awayMode, idleThresholdSec: config.idleThresholdSec,
     ntfyTopic: config.ntfyTopic, ntfyServer: config.ntfyServer,
+    port: config.port, addresses: lanAddresses().map(a => ({ address: a.address, kind: a.kind })),
     sessions: list,
     pending: [...pending.values()].map(p => p.info).filter(i => i.kind !== 'stop'),
   };
@@ -1019,12 +1020,25 @@ setInterval(() => {
   }
 }, 20e3);
 
+// Every IPv4 address the phone could use. Tailscale addresses (100.64.0.0/10) work from anywhere;
+// 169.254.x.x link-local ones never help, so they're left out.
 function lanAddresses() {
   const out = [];
   for (const [name, addrs] of Object.entries(os.networkInterfaces())) {
-    for (const a of addrs ?? []) if (a.family === 'IPv4' && !a.internal) out.push({ iface: name, address: a.address });
+    for (const a of addrs ?? []) {
+      if (a.family !== 'IPv4' || a.internal || a.address.startsWith('169.254.')) continue;
+      const [x, y] = a.address.split('.').map(Number);
+      const kind = x === 100 && y >= 64 && y <= 127 ? 'tailscale' : 'lan';
+      out.push({ iface: name, address: a.address, kind });
+    }
   }
-  return out;
+  return out.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'lan' ? -1 : 1));
+}
+
+// Keep the Mac awake on power so the phone can reach it; on battery, macOS sleeps as usual.
+if (config.keepAwakeOnPower) {
+  const awake = spawn('/usr/bin/caffeinate', ['-s', '-w', String(process.pid)], { stdio: 'ignore' });
+  process.on('exit', () => awake.kill());
 }
 
 tlsServer.listen(config.port, '0.0.0.0', () => {

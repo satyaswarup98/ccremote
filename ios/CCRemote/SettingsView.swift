@@ -32,6 +32,23 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    if let ts = client.pairing?.tailscaleHost {
+                        Label("On via Tailscale (\(ts))", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.green)
+                    } else {
+                        Label("Wi-Fi only", systemImage: "wifi").foregroundStyle(Theme.secondary)
+                        Button {
+                            openURL(URL(string: "https://apps.apple.com/app/tailscale/id1470499037")!)
+                        } label: { Label("Get Tailscale for iPhone", systemImage: "arrow.down.app") }
+                    }
+                } header: {
+                    Text("Remote access (mobile data)")
+                } footer: {
+                    Text(client.pairing?.tailscaleHost != nil
+                         ? "Away from this Wi-Fi, CC Remote connects through Tailscale automatically. Keep Tailscale switched on on the iPhone."
+                         : "To use CC Remote away from home: install Tailscale on the Mac and this iPhone and sign in to the same account on both. CC Remote picks it up by itself.")
+                }
+
+                Section {
                     if let topic = client.state?.ntfyTopic {
                         Button {
                             openURL(URL(string: "ntfy://ntfy.sh/\(topic)")!) { ok in

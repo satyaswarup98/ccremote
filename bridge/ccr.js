@@ -39,7 +39,7 @@ const HOOKS = {
   PostToolUse: 10,
   PermissionRequest: 3660,
   Notification: 10,
-  Stop: 900,
+  Stop: 3600,
   SessionEnd: 10,
 };
 

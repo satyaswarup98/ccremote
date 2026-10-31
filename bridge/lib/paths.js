@@ -20,7 +20,10 @@ const DEFAULT_CONFIG = {
   awayMode: 'auto',
   idleThresholdSec: 120,
   // how long a finished turn waits for a message from the phone while away
-  stopHoldSec: 840,
+  // While away, a finished turn waits this long for a reply from the phone (works with the screen locked).
+  stopHoldSec: 3540,
+  // Keep the Mac from sleeping while it's on power, so the phone can reach it (caffeinate -s).
+  keepAwakeOnPower: true,
   // Send to VS Code only types after this many seconds without keyboard/mouse input on the Mac.
   vscodeIdleSec: 8,
   ntfyServer: 'https://ntfy.sh',
@@ -51,6 +54,8 @@ export function ensureStateDir() {
     fs.chmodSync(path.join(TLS_DIR, 'key.pem'), 0o600);
   }
   const cfg = loadConfig();
+  // Older installs saved the previous 14-minute default; move them to the new one (custom values stay).
+  if (cfg.stopHoldSec === 840) { cfg.stopHoldSec = DEFAULT_CONFIG.stopHoldSec; saveConfig(cfg); }
   if (!cfg.ntfyTopic) {
     cfg.ntfyTopic = 'ccr-' + crypto.randomBytes(12).toString('hex');
     saveConfig(cfg);
