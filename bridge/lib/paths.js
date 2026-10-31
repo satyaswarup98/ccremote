@@ -21,6 +21,8 @@ const DEFAULT_CONFIG = {
   idleThresholdSec: 120,
   // how long a finished turn waits for a message from the phone while away
   stopHoldSec: 840,
+  // Send to VS Code only types after this many seconds without keyboard/mouse input on the Mac.
+  vscodeIdleSec: 8,
   ntfyServer: 'https://ntfy.sh',
   ntfyTopic: null,
   ntfyDetail: true,
