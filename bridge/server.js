@@ -151,7 +151,7 @@ function upsertSession(ev, headers) {
     };
     sessions.set(id, s);
   }
-  if (ev.cwd) { s.cwd = ev.cwd; s.project = path.basename(ev.cwd) || '~'; }
+  if (ev.cwd) { s.cwd = ev.cwd; s.project = path.basename(s.rootDir ?? ev.cwd) || '~'; }
   if (ev.transcript_path) s.transcriptPath = ev.transcript_path;
   if (ev.permission_mode) s.permissionMode = ev.permission_mode;
   // Which terminal Claude runs in, if any: a tmux pane, or a GNU screen session ($STY).
@@ -209,6 +209,12 @@ function scanRegistry() {
     }
     s.pid = r.pid;
     s.name = r.name ?? null;
+    // The folder the session started in (the one VS Code has open). Hook cwd follows `cd` instead.
+    if (r.cwd && !s.rootDir) {
+      s.rootDir = r.cwd;
+      s.project = path.basename(r.cwd) || '~';
+      changed = true;
+    }
     // Hooks know more (approvals, tool activity); the registry only fills in when hooks are quiet.
     if (Date.now() - (s.lastHookAt ?? 0) > 15e3 && s.status !== 'ended') {
       const st = r.status === 'busy' ? 'working' : 'idle';
@@ -306,7 +312,7 @@ function sessionView(s) {
   else if (reqs.some(r => r.kind === 'stop')) status = 'waiting_input';
   const tail = tails.get(s.id);
   return {
-    id: s.id, cwd: s.cwd, project: s.project, title: tail?.title ?? s.title ?? s.name ?? null,
+    id: s.id, cwd: s.rootDir ?? s.cwd, project: s.project, title: tail?.title ?? s.title ?? s.name ?? null,
     entrypoint: s.entrypoint, hasMirror: !!s.termId, status, activity: s.activity,
     lastMessage: s.lastMessage, lastPrompt: s.lastPrompt, permissionMode: s.permissionMode,
     updatedAt: s.updatedAt, queued: (queued.get(s.id) ?? []).length,
@@ -833,7 +839,7 @@ async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
     vscodeSends.set(s.id, prompt => { clearTimeout(t); resolve(prompt); });
   });
   try {
-    await vscodeSubmit({ sessionId: s.id, cwd: s.cwd, text, title });
+    await vscodeSubmit({ sessionId: s.id, cwd: s.rootDir ?? s.cwd, text, title });
   } catch (e) {
     vscodeSends.delete(s.id);
     const why = {
