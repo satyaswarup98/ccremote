@@ -17,7 +17,7 @@ fi
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 echo "Downloading CC Remote…"
-if ! curl -fsSL --retry 3 "$ARCHIVE" -o "$TMP/ccremote.tar.gz"; then
+if ! curl -fsSL --connect-timeout 20 --retry 5 --retry-delay 2 --retry-all-errors "$ARCHIVE" -o "$TMP/ccremote.tar.gz"; then
   echo "Couldn't download from GitHub. Check the Mac's internet connection (or VPN/proxy) and run the command again."
   exit 1
 fi
