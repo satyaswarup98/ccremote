@@ -235,18 +235,36 @@ struct OutgoingBubble: View {
         case .sent:
             Label("Sent", systemImage: "checkmark").font(.caption2).foregroundStyle(Theme.secondary)
         case .queued:
-            Label(item.note ?? "Queued", systemImage: "clock").font(.caption2).foregroundStyle(Theme.amber)
-                .multilineTextAlignment(.trailing)
+            VStack(alignment: .trailing, spacing: 4) {
+                Label(item.note ?? "Queued", systemImage: "clock").font(.caption2).foregroundStyle(Theme.amber)
+                    .multilineTextAlignment(.trailing)
+                copyButton.font(.caption.weight(.semibold))
+            }
         case .failed:
             VStack(alignment: .trailing, spacing: 4) {
                 if let n = item.note { Text(n).font(.caption2).foregroundStyle(Theme.red).multilineTextAlignment(.trailing) }
                 HStack(spacing: 14) {
                     Button("Dismiss") { client.dismissOutgoing(item) }.foregroundStyle(Theme.secondary)
+                    copyButton
                     Button { client.retry(item) } label: { Label("Retry", systemImage: "arrow.clockwise") }.foregroundStyle(Theme.accent)
                 }
                 .font(.caption.weight(.semibold))
             }
         }
+    }
+
+    // Only for messages that didn't get through: copy it to paste on the Mac yourself (Universal Clipboard).
+    @State private var copied = false
+    private var copyButton: some View {
+        Button {
+            UIPasteboard.general.string = item.text
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            withAnimation { copied = true }
+            Task { try? await Task.sleep(for: .seconds(1.6)); withAnimation { copied = false } }
+        } label: {
+            Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+        }
+        .foregroundStyle(copied ? Theme.green : Theme.text)
     }
 }
 
