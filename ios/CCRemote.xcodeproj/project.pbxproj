@@ -1,0 +1,368 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		170C56B22E846FA5A18BE9C3 /* ANSI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F264EBD91F6AF7FC6CC7E8F /* ANSI.swift */; };
+		1FF7065643D86FB0A58C1B1D /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02EA2D9B92A184D002929975 /* Keychain.swift */; };
+		3A4F9418220FDBE47AE98CD5 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C52F20A043369577F2158E3 /* Models.swift */; };
+		5B1D4C3C6CCC1583F12CCC82 /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE0A23BB3453289AC5AED2B /* Notifier.swift */; };
+		7BA9953571A9D1D19FF6E8D7 /* Discovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10045F87E99F9EF77A29E8D5 /* Discovery.swift */; };
+		7DE2DB25E83FD179C76F07C5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BC02D79DE1BAE68C6D778CE5 /* Assets.xcassets */; };
+		89DD1AAF116C5B2D22483BBE /* CCRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 890F6016F451E3FE61D7A4FA /* CCRemoteApp.swift */; };
+		92D6FACE738A9B543866F52A /* RequestSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEE80B1506B14BE0A320C049 /* RequestSheet.swift */; };
+		9601140B23F8038B7D24D94E /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72701CDE2264BBB7CDAB9A06 /* SessionDetailView.swift */; };
+		9E4E17EE723EE24FA2D4CFC9 /* MarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F438795BF49D8EDF59DF0B5 /* MarkdownView.swift */; };
+		AD87405843CDF8F842B1BE13 /* Pinning.swift in Sources */ = {isa = PBXBuildFile; fileRef = 178CACC5858F4D524DA93BAD /* Pinning.swift */; };
+		B0248CD855DC7DBAAA4BB137 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B2D6EF983748E33690D2CA /* Theme.swift */; };
+		BC5DCA01C94EE623A708D09F /* BridgeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC9D4809EB9C07FCEE5B766 /* BridgeClient.swift */; };
+		C79EF282DED5C04A515553D2 /* SessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E1AD9917514126031A4DB8 /* SessionsView.swift */; };
+		D831671DB4C73A237060D04E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7EECACA8F5807F60C77D570 /* SettingsView.swift */; };
+		E9F14E556CBC1AC05EE16866 /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D625696D8D07B3832F3C299 /* PairingView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		02EA2D9B92A184D002929975 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
+		0FC9D4809EB9C07FCEE5B766 /* BridgeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeClient.swift; sourceTree = "<group>"; };
+		10045F87E99F9EF77A29E8D5 /* Discovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Discovery.swift; sourceTree = "<group>"; };
+		178CACC5858F4D524DA93BAD /* Pinning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pinning.swift; sourceTree = "<group>"; };
+		1AE0A23BB3453289AC5AED2B /* Notifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifier.swift; sourceTree = "<group>"; };
+		2D625696D8D07B3832F3C299 /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingView.swift; sourceTree = "<group>"; };
+		3C52F20A043369577F2158E3 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		3F264EBD91F6AF7FC6CC7E8F /* ANSI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ANSI.swift; sourceTree = "<group>"; };
+		3F438795BF49D8EDF59DF0B5 /* MarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownView.swift; sourceTree = "<group>"; };
+		72701CDE2264BBB7CDAB9A06 /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
+		890F6016F451E3FE61D7A4FA /* CCRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CCRemoteApp.swift; sourceTree = "<group>"; };
+		90969201D1D7E07FA5C06F2F /* CCRemote.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CCRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A5B2D6EF983748E33690D2CA /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		A681E93A31D50F019B0E85DA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		AEE80B1506B14BE0A320C049 /* RequestSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestSheet.swift; sourceTree = "<group>"; };
+		BC02D79DE1BAE68C6D778CE5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C4E1AD9917514126031A4DB8 /* SessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsView.swift; sourceTree = "<group>"; };
+		E7EECACA8F5807F60C77D570 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		3054656986A8915B84B72D47 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				90969201D1D7E07FA5C06F2F /* CCRemote.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D8EA4366AEFC2A39F137F65D /* CCRemote */ = {
+			isa = PBXGroup;
+			children = (
+				3F264EBD91F6AF7FC6CC7E8F /* ANSI.swift */,
+				BC02D79DE1BAE68C6D778CE5 /* Assets.xcassets */,
+				0FC9D4809EB9C07FCEE5B766 /* BridgeClient.swift */,
+				890F6016F451E3FE61D7A4FA /* CCRemoteApp.swift */,
+				10045F87E99F9EF77A29E8D5 /* Discovery.swift */,
+				A681E93A31D50F019B0E85DA /* Info.plist */,
+				02EA2D9B92A184D002929975 /* Keychain.swift */,
+				3F438795BF49D8EDF59DF0B5 /* MarkdownView.swift */,
+				3C52F20A043369577F2158E3 /* Models.swift */,
+				1AE0A23BB3453289AC5AED2B /* Notifier.swift */,
+				2D625696D8D07B3832F3C299 /* PairingView.swift */,
+				178CACC5858F4D524DA93BAD /* Pinning.swift */,
+				AEE80B1506B14BE0A320C049 /* RequestSheet.swift */,
+				72701CDE2264BBB7CDAB9A06 /* SessionDetailView.swift */,
+				C4E1AD9917514126031A4DB8 /* SessionsView.swift */,
+				E7EECACA8F5807F60C77D570 /* SettingsView.swift */,
+				A5B2D6EF983748E33690D2CA /* Theme.swift */,
+			);
+			path = CCRemote;
+			sourceTree = "<group>";
+		};
+		E9905A72D75A1E08365BD240 = {
+			isa = PBXGroup;
+			children = (
+				D8EA4366AEFC2A39F137F65D /* CCRemote */,
+				3054656986A8915B84B72D47 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		206FA66350C6C3203268C701 /* CCRemote */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7E1DE8C4406D126D1728AF1E /* Build configuration list for PBXNativeTarget "CCRemote" */;
+			buildPhases = (
+				5EB4D8CF73CBC355676C0E13 /* Sources */,
+				4DA19001B480224FD01D8EA2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CCRemote;
+			packageProductDependencies = (
+			);
+			productName = CCRemote;
+			productReference = 90969201D1D7E07FA5C06F2F /* CCRemote.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		BD624A33F08283561B716C60 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					206FA66350C6C3203268C701 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = A8B22F66F5C80F4B6BB8AA66 /* Build configuration list for PBXProject "CCRemote" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E9905A72D75A1E08365BD240;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 3054656986A8915B84B72D47 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				206FA66350C6C3203268C701 /* CCRemote */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		4DA19001B480224FD01D8EA2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7DE2DB25E83FD179C76F07C5 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		5EB4D8CF73CBC355676C0E13 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				170C56B22E846FA5A18BE9C3 /* ANSI.swift in Sources */,
+				BC5DCA01C94EE623A708D09F /* BridgeClient.swift in Sources */,
+				89DD1AAF116C5B2D22483BBE /* CCRemoteApp.swift in Sources */,
+				7BA9953571A9D1D19FF6E8D7 /* Discovery.swift in Sources */,
+				1FF7065643D86FB0A58C1B1D /* Keychain.swift in Sources */,
+				9E4E17EE723EE24FA2D4CFC9 /* MarkdownView.swift in Sources */,
+				3A4F9418220FDBE47AE98CD5 /* Models.swift in Sources */,
+				5B1D4C3C6CCC1583F12CCC82 /* Notifier.swift in Sources */,
+				E9F14E556CBC1AC05EE16866 /* PairingView.swift in Sources */,
+				AD87405843CDF8F842B1BE13 /* Pinning.swift in Sources */,
+				92D6FACE738A9B543866F52A /* RequestSheet.swift in Sources */,
+				9601140B23F8038B7D24D94E /* SessionDetailView.swift in Sources */,
+				C79EF282DED5C04A515553D2 /* SessionsView.swift in Sources */,
+				D831671DB4C73A237060D04E /* SettingsView.swift in Sources */,
+				B0248CD855DC7DBAAA4BB137 /* Theme.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		0CC0B27F92D75E384BCC3E9B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		48D4621918A702252E766365 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		4930829AA05E9E9B9B22EE28 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CCRemote/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.satya.ccremote;
+				PRODUCT_NAME = CCRemote;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		8BA317F58BBF1223656F5BD6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CCRemote/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.satya.ccremote;
+				PRODUCT_NAME = CCRemote;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7E1DE8C4406D126D1728AF1E /* Build configuration list for PBXNativeTarget "CCRemote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8BA317F58BBF1223656F5BD6 /* Debug */,
+				4930829AA05E9E9B9B22EE28 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A8B22F66F5C80F4B6BB8AA66 /* Build configuration list for PBXProject "CCRemote" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0CC0B27F92D75E384BCC3E9B /* Debug */,
+				48D4621918A702252E766365 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = BD624A33F08283561B716C60 /* Project object */;
+}

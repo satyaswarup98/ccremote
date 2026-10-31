@@ -114,6 +114,9 @@ async function launchTerminal(ws, cwd, args, title) {
   try {
     ({ pane } = await tmux.newSession(cwd, bin, args, { CCR_ORIGIN: origin }));
   } catch (e) {
+    if (e.code === 'ENOENT') {
+      return toast(ws, 'Terminal sessions need tmux on the Mac. Install it with: brew install tmux (approvals, questions and messages work without it).', 'error');
+    }
     return toast(ws, `tmux failed: ${e.message}`, 'error');
   }
   const placeholderId = `launch-${origin}`;

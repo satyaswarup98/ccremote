@@ -16,14 +16,14 @@ Paste into Terminal on the Mac. It downloads everything into `~/ccremote` and ru
 curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash
 ```
 
-Mac only (when someone else's Mac already installed the app on your iPhone; no Xcode needed):
+Mac only (when someone else's Mac already installed the app on your iPhone; no Xcode or Homebrew needed):
 
 ```
 curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash -s -- bridge
 ~/ccremote/setup.sh pair
 ```
 
-Needs: macOS with [Homebrew](https://brew.sh) and Claude Code. Building the iPhone app also needs Xcode from the App Store, an Apple ID (free is fine), and the iPhone on a USB cable.
+Needs: a Mac with Claude Code. Nothing else to install first: if the Mac has no Node.js, setup downloads the official build into `~/.ccremote/node` (no admin password). Homebrew is optional; with it, setup also installs `tmux` for the phone's live Terminal view and `cc`. Building the iPhone app additionally needs Xcode from the App Store, an Apple ID (free is fine), and the iPhone on a USB cable.
 
 ```
 ~/ccremote/setup.sh app     # every 7 days on a free Apple ID: rebuild + reinstall the app

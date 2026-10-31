@@ -14,9 +14,22 @@ const SETTINGS = path.join(os.homedir(), '.claude/settings.json');
 const HOOK_CMD = path.join(STATE_DIR, 'bin/ccr-hook');
 const LABEL = 'com.ccremote.bridge';
 const PLIST = path.join(os.homedir(), 'Library/LaunchAgents', `${LABEL}.plist`);
-// Homebrew's bin is on PATH on both Apple Silicon (/opt/homebrew) and Intel (/usr/local) Macs.
-const BIN_DIR = ['/opt/homebrew/bin', '/usr/local/bin'].find(d => fs.existsSync(d)) ?? '/usr/local/bin';
+// Put ccr/cc in a writable folder that's already on PATH (Homebrew's on most Macs); otherwise use
+// ~/.ccremote/bin and add it to PATH for new Terminal windows.
+function writable(d) { try { fs.accessSync(d, fs.constants.W_OK); return true; } catch { return false; } }
+const BIN_DIR = ['/opt/homebrew/bin', '/usr/local/bin'].find(d => fs.existsSync(d) && writable(d)) ?? path.join(STATE_DIR, 'bin');
 const UID = process.getuid();
+
+// Homebrew's node resolves to a versioned Cellar folder that `brew upgrade` deletes; use its stable
+// bin/node link instead so the background service and ccr keep working after upgrades.
+const NODE = (() => {
+  const i = process.execPath.indexOf('/Cellar/');
+  if (i > 0) {
+    const stable = path.join(process.execPath.slice(0, i), 'bin/node');
+    if (fs.existsSync(stable)) return stable;
+  }
+  return process.execPath;
+})();
 
 // Event -> hook timeout (s). Holding events get long timeouts so the phone has time to answer.
 const HOOKS = {
@@ -51,8 +64,6 @@ function isOurs(cmd = '') {
 function editHooks(add) {
   const raw = fs.existsSync(SETTINGS) ? fs.readFileSync(SETTINGS, 'utf8') : '{}';
   const settings = JSON.parse(raw);
-  const backup = `${SETTINGS}.ccremote-backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-  fs.writeFileSync(backup, raw);
   const hooks = settings.hooks ?? {};
   for (const [event, groups] of Object.entries(hooks)) {
     hooks[event] = groups
@@ -66,7 +77,11 @@ function editHooks(add) {
     }
   }
   settings.hooks = hooks;
-  fs.writeFileSync(SETTINGS, JSON.stringify(settings, null, 2) + '\n');
+  const updated = JSON.stringify(settings, null, 2) + '\n';
+  if (updated === raw) return null;   // already up to date: no rewrite, no extra backup
+  const backup = `${SETTINGS}.ccremote-backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  fs.writeFileSync(backup, raw);
+  fs.writeFileSync(SETTINGS, updated);
   return backup;
 }
 
@@ -108,7 +123,7 @@ async function install() {
   fs.chmodSync(HOOK_CMD, 0o755);
 
   const backup = editHooks(true);
-  console.log(`${c.g('✓')} Claude Code hooks installed  ${c.d(`(old settings saved to ${backup})`)}`);
+  console.log(`${c.g('✓')} Claude Code hooks installed  ${c.d(backup ? `(old settings saved to ${backup})` : '(already up to date)')}`);
 
   fs.mkdirSync(path.dirname(PLIST), { recursive: true });
   fs.writeFileSync(PLIST, `<?xml version="1.0" encoding="UTF-8"?>
@@ -116,7 +131,7 @@ async function install() {
 <plist version="1.0"><dict>
   <key>Label</key><string>${LABEL}</string>
   <key>ProgramArguments</key><array>
-    <string>${process.execPath}</string><string>${path.join(HERE, 'server.js')}</string>
+    <string>${NODE}</string><string>${path.join(HERE, 'server.js')}</string>
   </array>
   <key>EnvironmentVariables</key><dict>
     <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
@@ -133,10 +148,24 @@ async function install() {
   }
   console.log(`${c.g('✓')} Bridge running in the background (starts at login)`);
 
-  for (const [name, target] of [['ccr', path.join(HERE, 'ccr.js')], ['cc', path.join(HERE, 'bin/cc')]]) {
-    const link = path.join(BIN_DIR, name);
-    try { fs.unlinkSync(link); } catch {}
-    fs.symlinkSync(target, link);
+  // Small wrapper scripts rather than symlinks, so ccr runs with the same node that installed it
+  // (which may be a private copy that isn't on PATH).
+  fs.mkdirSync(BIN_DIR, { recursive: true });
+  const wrappers = {
+    ccr: `#!/bin/sh\nexec "${NODE}" "${path.join(HERE, 'ccr.js')}" "$@"\n`,
+    cc: `#!/bin/sh\nexec "${path.join(HERE, 'bin/cc')}" "$@"\n`,
+  };
+  for (const [name, body] of Object.entries(wrappers)) {
+    const file = path.join(BIN_DIR, name);
+    try { fs.unlinkSync(file); } catch {}
+    fs.writeFileSync(file, body, { mode: 0o755 });
+  }
+  if (BIN_DIR === path.join(STATE_DIR, 'bin')) {
+    const line = `export PATH="${BIN_DIR}:$PATH"`;
+    const zprofile = path.join(os.homedir(), '.zprofile');
+    const current = fs.existsSync(zprofile) ? fs.readFileSync(zprofile, 'utf8') : '';
+    if (!current.includes(line)) fs.appendFileSync(zprofile, `\n# CC Remote commands (ccr, cc)\n${line}\n`);
+    console.log(c.d(`  (open a new Terminal window for the ccr and cc commands to work)`));
   }
   console.log(`${c.g('✓')} Commands available: ${c.b('ccr')} (control) and ${c.b('cc')} (Claude in tmux, with live mirror)`);
   console.log(`\nNext: run ${c.o('ccr pair')} and type the code into the iPhone app.`);
@@ -147,7 +176,7 @@ function uninstall() {
   launchctl('bootout', `gui/${UID}/${LABEL}`);
   try { fs.unlinkSync(PLIST); } catch {}
   for (const n of ['ccr', 'cc']) try { fs.unlinkSync(path.join(BIN_DIR, n)); } catch {}
-  console.log(`Removed hooks and background service. Settings backup: ${backup}`);
+  console.log(`Removed hooks and background service.${backup ? ` Settings backup: ${backup}` : ''}`);
   console.log(c.d(`Pairings and keys are kept in ${STATE_DIR}; delete that folder to forget everything.`));
 }
 

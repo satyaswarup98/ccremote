@@ -32,17 +32,20 @@ export function ensureStateDir() {
     fs.writeFileSync(SECRET_FILE, crypto.randomBytes(24).toString('hex'), { mode: 0o600 });
   }
   if (!fs.existsSync(path.join(TLS_DIR, 'cert.pem'))) {
-    // Needs OpenSSL 3: macOS's LibreSSL writes v1 certs with explicit curve params, which iOS rejects.
-    const openssl = ['/opt/homebrew/opt/openssl@3/bin/openssl', '/usr/local/opt/openssl@3/bin/openssl'].find(p => fs.existsSync(p));
-    if (!openssl) throw new Error('OpenSSL 3 not found: brew install openssl@3');
-    execFileSync(openssl, [
-      'req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-pkeyopt', 'ec_param_enc:named_curve',
-      '-nodes', '-days', '825', '-sha256', '-subj', '/CN=ccremote-bridge',
-      '-addext', 'subjectAltName=DNS:ccremote-bridge',
-      '-addext', 'extendedKeyUsage=serverAuth',
-      '-addext', 'basicConstraints=critical,CA:FALSE',
-      '-keyout', path.join(TLS_DIR, 'key.pem'), '-out', path.join(TLS_DIR, 'cert.pem'),
-    ], { stdio: 'ignore' });
+    // Works with macOS's built-in LibreSSL as well as OpenSSL 3. Must be an X.509 v3 cert with a
+    // *named* P-256 curve: iOS rejects certs that spell out the curve parameters.
+    const openssl = ['/usr/bin/openssl', '/opt/homebrew/opt/openssl@3/bin/openssl', '/usr/local/opt/openssl@3/bin/openssl'].find(p => fs.existsSync(p));
+    if (!openssl) throw new Error('openssl not found');
+    const cnf = path.join(TLS_DIR, 'cert.cnf');
+    fs.writeFileSync(cnf, [
+      '[req]', 'distinguished_name = dn', 'x509_extensions = v3', 'prompt = no',
+      '[dn]', 'CN = ccremote-bridge',
+      '[v3]', 'subjectAltName = DNS:ccremote-bridge', 'extendedKeyUsage = serverAuth', 'basicConstraints = critical,CA:FALSE', '',
+    ].join('\n'));
+    execFileSync(openssl, ['ecparam', '-name', 'prime256v1', '-param_enc', 'named_curve', '-genkey', '-noout', '-out', path.join(TLS_DIR, 'key.pem')], { stdio: 'ignore' });
+    execFileSync(openssl, ['req', '-new', '-x509', '-key', path.join(TLS_DIR, 'key.pem'), '-out', path.join(TLS_DIR, 'cert.pem'),
+      '-days', '825', '-sha256', '-config', cnf], { stdio: 'ignore' });
+    fs.unlinkSync(cnf);
     fs.chmodSync(path.join(TLS_DIR, 'key.pem'), 0o600);
   }
   const cfg = loadConfig();

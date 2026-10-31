@@ -4,7 +4,7 @@
 #
 #   ./setup.sh          full setup (safe to re-run)
 #   ./setup.sh app      rebuild + reinstall the iPhone app only (do this every 7 days on a free Apple ID)
-#   ./setup.sh bridge   install/update the Mac bridge only
+#   ./setup.sh bridge   install/update the Mac bridge only, then pair (no Xcode or Homebrew needed)
 #   ./setup.sh pair     show a pairing code
 set -euo pipefail
 
@@ -22,7 +22,7 @@ ask() { local q="$1" def="${2:-}" a; read -r -p "  $q${def:+ [$def]}: " a </dev/
 
 # ---------- checks ----------
 
-# Homebrew may be installed but not on PATH yet (fresh install, new shell).
+# Homebrew is optional (only for tmux). It may be installed but not on PATH yet.
 load_brew() {
   local b
   for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do
@@ -31,29 +31,52 @@ load_brew() {
   return 1
 }
 
-install_brew() {
-  step "Installing Homebrew (the Mac's package manager)"
-  info "It asks for your Mac password (typing is invisible), then 'Press RETURN' to continue."
-  info "It also installs Apple's command line tools, so this can take 5–15 minutes."
-  /bin/bash -c "$(curl -fsSL --retry 5 --retry-all-errors https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" </dev/tty
-  load_brew || die "Homebrew didn't finish installing. Run the command again."
-  # Make brew available in new Terminal windows too.
-  local line="eval \"\$($(command -v brew) shellenv)\""
-  grep -qsF "$line" "$HOME/.zprofile" || echo "$line" >> "$HOME/.zprofile"
-}
-
 check_mac() {
   [ "$(uname)" = "Darwin" ] || die "This needs macOS."
-  command -v brew >/dev/null || load_brew || install_brew
-  ok "macOS $(sw_vers -productVersion) on $(uname -m), Homebrew found"
+  command -v brew >/dev/null || load_brew || true
+  ok "macOS $(sw_vers -productVersion) on $(uname -m)"
 }
 
-install_tools() {
-  step "Installing tools (node, tmux, openssl@3, xcodegen)"
-  local need=()
-  for f in node tmux openssl@3 xcodegen; do brew list --formula "$f" >/dev/null 2>&1 || need+=("$f"); done
-  if [ ${#need[@]} -gt 0 ]; then brew install "${need[@]}"; fi
-  ok "tools ready"
+# Uses the Mac's node if it's recent enough, otherwise downloads the official build from nodejs.org
+# into ~/.ccremote/node (no Homebrew, no admin password).
+# Some networks stall connections mid-transfer: give up on a stalled try (no data for 20 s) and retry.
+CURL_RETRY="--connect-timeout 15 --speed-limit 1024 --speed-time 20 --retry 6 --retry-delay 2 --retry-all-errors"
+
+NODE=""
+ensure_node() {
+  local v
+  if command -v node >/dev/null 2>&1; then
+    v=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
+    if [ "$v" -ge 18 ]; then NODE=$(command -v node); ok "Node $(node -v)"; return; fi
+  fi
+  if [ -x "$STATE/node/bin/node" ]; then NODE="$STATE/node/bin/node"; ok "Node $("$NODE" -v) (private copy)"; return; fi
+  step "Downloading Node.js (runs the bridge; about 50 MB, stays in ~/.ccremote/node)"
+  local arch; arch=$([ "$(uname -m)" = "arm64" ] && echo arm64 || echo x64)
+  local ver
+  local index
+  index=$(curl -fsSL $CURL_RETRY --max-time 60 https://nodejs.org/dist/index.tab) || index=""
+  ver=$(awk -F'\t' 'NR>1 && $10 != "-" { print $1; exit }' <<<"$index")
+  [ -n "$ver" ] || die "Couldn't reach nodejs.org. Check the internet connection and run the command again."
+  local tmp; tmp=$(mktemp -d)
+  curl -fSL --progress-bar $CURL_RETRY "https://nodejs.org/dist/$ver/node-$ver-darwin-$arch.tar.gz" -o "$tmp/node.tgz" \
+    || die "Node download failed. Run the command again."
+  mkdir -p "$STATE/node"
+  # Only the node program is needed (no npm, headers or docs): about 110 MB instead of 220.
+  tar -xzf "$tmp/node.tgz" -C "$STATE/node" --strip-components 1 "node-$ver-darwin-$arch/bin/node" "node-$ver-darwin-$arch/LICENSE"
+  rm -rf "$tmp"
+  NODE="$STATE/node/bin/node"
+  "$NODE" -v >/dev/null || die "The downloaded Node doesn't run on this Mac."
+  ok "Node $("$NODE" -v) installed in ~/.ccremote/node"
+}
+
+optional_tmux() {
+  command -v tmux >/dev/null 2>&1 && { ok "tmux found (live Terminal view enabled)"; return; }
+  if command -v brew >/dev/null 2>&1; then
+    info "Installing tmux for the live Terminal view…"
+    brew install tmux >/dev/null 2>&1 && { ok "tmux installed"; return; }
+  fi
+  info "Optional: tmux isn't installed, so the phone's live Terminal view and 'cc' are off."
+  info "Approvals, questions, messages and notifications all work without it."
 }
 
 check_xcode() {
@@ -80,13 +103,13 @@ check_xcode() {
 
 install_bridge() {
   step "Installing the Mac bridge"
-  (cd "$HERE/bridge" && npm install --silent --no-audit --no-fund)
+  [ -f "$HERE/bridge/node_modules/ws/package.json" ] || die "The download is incomplete (bridge/node_modules/ws is missing). Run the install command again."
   if [ -f "$HOME/.claude/settings.json" ] && grep -q '"hooks"' "$HOME/.claude/settings.json" && ! grep -q ccr-hook "$HOME/.claude/settings.json"; then
     info "Your ~/.claude/settings.json already has hooks. CC Remote replaces any 'ccn' notifier hooks"
     info "and adds its own; everything else is kept, and a backup is saved next to it."
     [ "$(ask 'Continue? (y/n)' y)" = "y" ] || die "Stopped. Nothing was changed."
   fi
-  node "$HERE/bridge/ccr.js" install
+  "$NODE" "$HERE/bridge/ccr.js" install
 }
 
 # ---------- iPhone app ----------
@@ -94,7 +117,7 @@ install_bridge() {
 pick_team() {
   local teams
   teams=$(defaults export com.apple.dt.Xcode - 2>/dev/null | plutil -extract IDEProvisioningTeamByIdentifier json -o - - 2>/dev/null || echo '{}')
-  node -e '
+  "$NODE" -e '
     const t = Object.values(JSON.parse(process.argv[1])).flat();
     const seen = new Set();
     for (const x of t) if (!seen.has(x.teamID)) { seen.add(x.teamID); console.log(`${x.teamID}\t${x.teamName}`); }
@@ -104,7 +127,7 @@ pick_team() {
 pick_device() {
   local f; f=$(mktemp)
   xcrun devicectl list devices --json-output "$f" >/dev/null 2>&1 || true
-  node -e '
+  "$NODE" -e '
     const d = (JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).result?.devices ?? [])
       .filter(x => x.hardwareProperties?.reality === "physical" && x.hardwareProperties?.platform === "iOS");
     for (const x of d) console.log([x.hardwareProperties.udid, x.deviceProperties?.name, x.deviceProperties?.developerModeStatus ?? "unknown", x.connectionProperties?.tunnelState ?? ""].join("\t"));
@@ -115,8 +138,8 @@ pick_device() {
 configure_app() {
   mkdir -p "$STATE"
   if [ -f "$APP_CFG" ]; then
-    TEAM=$(node -e 'console.log(require(process.argv[1]).team)' "$APP_CFG")
-    BUNDLE=$(node -e 'console.log(require(process.argv[1]).bundle)' "$APP_CFG")
+    TEAM=$("$NODE" -e 'console.log(require(process.argv[1]).team)' "$APP_CFG")
+    BUNDLE=$("$NODE" -e 'console.log(require(process.argv[1]).bundle)' "$APP_CFG")
     ok "using team $TEAM, app ID $BUNDLE  ${DIM}(saved in $APP_CFG)${OFF}"
     return
   fi
@@ -138,7 +161,7 @@ configure_app() {
   ok "team: $(echo "$teams" | head -1 | cut -f2) ($TEAM)"
   local user; user=$(whoami | tr -cd 'a-z0-9')
   BUNDLE=$(ask "App ID (must be unique to you)" "com.${user}.ccremote")
-  node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ team: process.argv[2], bundle: process.argv[3] }, null, 2))' "$APP_CFG" "$TEAM" "$BUNDLE"
+  "$NODE" -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ team: process.argv[2], bundle: process.argv[3] }, null, 2))' "$APP_CFG" "$TEAM" "$BUNDLE"
 }
 
 find_iphone() {
@@ -171,7 +194,6 @@ find_iphone() {
 build_and_install() {
   step "Building CC Remote"
   cd "$HERE/ios"
-  xcodegen generate --quiet
   local log; log=$(mktemp)
   if ! xcodebuild -project CCRemote.xcodeproj -scheme CCRemote -configuration Debug \
         -destination "id=$UDID" -derivedDataPath build \
@@ -197,13 +219,13 @@ build_and_install() {
   info "Free Apple IDs: the app stops opening after 7 days. Re-run: ./setup.sh app"
 }
 
-app() { check_mac; check_xcode; configure_app; find_iphone; build_and_install; }
+app() { check_mac; ensure_node; check_xcode; configure_app; find_iphone; build_and_install; }
+pair() { step "Pairing"; info "Tap this Mac in the CC Remote app, then enter this code:"; "$NODE" "$HERE/bridge/ccr.js" pair; }
 
 case "${1:-all}" in
-  all)    check_mac; install_tools; check_xcode; install_bridge; configure_app; find_iphone; build_and_install
-          step "Pairing"; info "Tap your Mac in the app, then enter this code:"; node "$HERE/bridge/ccr.js" pair ;;
+  all)    check_mac; ensure_node; optional_tmux; check_xcode; install_bridge; configure_app; find_iphone; build_and_install; pair ;;
   app)    app ;;
-  bridge) check_mac; install_tools; install_bridge ;;
-  pair)   node "$HERE/bridge/ccr.js" pair ;;
+  bridge) check_mac; ensure_node; optional_tmux; install_bridge; pair ;;
+  pair)   ensure_node; pair ;;
   *)      sed -n '2,8p' "$0" ;;
 esac

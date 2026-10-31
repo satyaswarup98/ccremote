@@ -1,6 +1,10 @@
 .DS_Store
-bridge/node_modules/
+# The bridge's only dependency (ws) is committed so installs need no npm.
+bridge/node_modules/*
+!bridge/node_modules/ws/
 ios/build/
 ios/build-sim/
-ios/CCRemote.xcodeproj/
+# The generated Xcode project is committed so building needs no xcodegen.
+ios/CCRemote.xcodeproj/xcuserdata/
+ios/CCRemote.xcodeproj/project.xcworkspace/xcuserdata/
 test/
