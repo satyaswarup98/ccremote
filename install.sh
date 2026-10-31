@@ -9,7 +9,8 @@ set -euo pipefail
 ARCHIVE="https://codeload.github.com/satyaswarup98/ccremote/tar.gz/refs/heads/main"
 DIR="${CCREMOTE_DIR:-$HOME/ccremote}"
 
-if [ -e "$DIR" ] && [ ! -f "$DIR/setup.sh" ]; then
+# An empty folder (e.g. left by an earlier failed download) is fine to install into.
+if [ -e "$DIR" ] && [ ! -f "$DIR/setup.sh" ] && [ -n "$(ls -A "$DIR" 2>/dev/null)" ]; then
   echo "${DIR} already exists and isn't a CC Remote download. Move it away (or set CCREMOTE_DIR=/other/path) and run again."
   exit 1
 fi
