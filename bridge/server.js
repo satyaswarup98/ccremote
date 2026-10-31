@@ -850,7 +850,12 @@ async function onPhoneMessage(ws, c, m) {
 
     case 'send': {
       const s = sessions.get(m.sessionId);
-      const text = String(m.text ?? '').trim();
+      // Images from the phone are saved on the Mac and passed to Claude as file paths it can open.
+      const paths = saveUploads(m.images);
+      let text = String(m.text ?? '').trim();
+      if (paths.length) {
+        text = `${text || 'Please look at the attached image.'}\n\n${paths.map(p => `[Image attached from my phone: ${p}]`).join('\n')}`;
+      }
       if (!s || !text) return;
       // The phone shows the message right away and updates it from this result (sent / queued / failed).
       const report = (status, note = null) => {
@@ -1048,6 +1053,29 @@ function newVSCodeChat(ws, cwd, text) {
   toast(ws, `Starting a new session in ${path.basename(cwd)}…`);
 }
 
+const UPLOADS_DIR = path.join(STATE_DIR, 'uploads');
+
+// Saves base64 JPEG/PNG images from the phone (at most 4, 8 MB each) and returns their paths.
+function saveUploads(images) {
+  if (!Array.isArray(images) || !images.length) return [];
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true, mode: 0o700 });
+  const out = [];
+  for (const img of images.slice(0, 4)) {
+    let buf;
+    try { buf = Buffer.from(String(img), 'base64'); } catch { continue; }
+    if (buf.length < 100 || buf.length > 8 << 20) continue;
+    const isJpeg = buf[0] === 0xff && buf[1] === 0xd8;
+    const isPng = buf.slice(0, 4).toString('hex') === '89504e47';
+    if (!isJpeg && !isPng) continue;
+    const name = `${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}-${crypto.randomBytes(3).toString('hex')}.${isPng ? 'png' : 'jpg'}`;
+    const file = path.join(UPLOADS_DIR, name);
+    fs.writeFileSync(file, buf, { mode: 0o600 });
+    out.push(file);
+  }
+  if (out.length) log(`saved ${out.length} image(s) from the phone`);
+  return out;
+}
+
 function recentDirs() {
   const seen = new Map();
   for (const s of sessions.values()) seen.set(s.rootDir ?? s.cwd, s.updatedAt);
@@ -1178,7 +1206,8 @@ const tlsServer = https.createServer({
 
 tlsServer.on('tlsClientError', (err, socket) => log(`TLS error from ${socket.remoteAddress}: ${err.code ?? ''} ${err.message}`));
 
-const wss = new WebSocketServer({ noServer: true, maxPayload: 1 << 20 });
+// Room for a message with a few photos attached (the phone shrinks them first).
+const wss = new WebSocketServer({ noServer: true, maxPayload: 24 << 20 });
 tlsServer.on('upgrade', (req, socket, head) => {
   const token = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
   const device = deviceForToken(token);

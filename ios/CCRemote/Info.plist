@@ -44,6 +44,8 @@
 	<array>
 		<string>_ccremote._tcp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>CC Remote uses the camera when you choose Take Photo to send a picture to Claude.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>CC Remote connects to the bridge on your Mac to control your Claude Code sessions.</string>
 	<key>UILaunchScreen</key>

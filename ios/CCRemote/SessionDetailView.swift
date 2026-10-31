@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct SessionDetailView: View {
     let sessionId: String
@@ -9,8 +10,11 @@ struct SessionDetailView: View {
     @AppStorage("terminalFontSize") private var fontSize: Double = 9.5
     @FocusState private var composerFocused: Bool
 
+    @State private var attachments: [Attachment] = []
+
     private func deliver(_ text: String, mode: BridgeClient.SendMode) {
-        client.sendText(text, to: sessionId, mode: mode)
+        client.sendText(text, to: sessionId, mode: mode, images: attachments.map(\.jpeg))
+        attachments = []
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         // Dictation can write its text back into the field after we clear it, so end editing first
         // (which stops dictation), clear, and clear again once the keyboard has settled.
@@ -48,9 +52,9 @@ struct SessionDetailView: View {
                 } else {
                     ChatTranscript(items: client.items, session: s)
                 }
-                Composer(session: s, draft: $draft, focused: $composerFocused) {
+                Composer(session: s, draft: $draft, attachments: $attachments, focused: $composerFocused) {
                     let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty else { return }
+                    guard !text.isEmpty || !attachments.isEmpty else { return }
                     // The Mac decides: reply to a waiting turn, type into the terminal or VS Code, or queue.
                     deliver(text, mode: .auto)
                 }
@@ -191,10 +195,17 @@ struct UserBubble: View {
     let text: String
     var fromPhone = false
     var body: some View {
+        let parts = AttachedImageText.split(text)
         HStack {
             Spacer(minLength: 50)
             VStack(alignment: .trailing, spacing: 4) {
-                Text(text)
+                if parts.images > 0 {
+                    Label(parts.images == 1 ? "1 image" : "\(parts.images) images", systemImage: "photo")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .glassPanel(cornerRadius: 14, tint: Theme.accent.opacity(0.25))
+                }
+                Text(parts.text)
                     .font(.subheadline)
                     .textSelection(.enabled)
                     .padding(.horizontal, 16).padding(.vertical, 12)
@@ -217,6 +228,17 @@ struct OutgoingBubble: View {
         HStack {
             Spacer(minLength: 50)
             VStack(alignment: .trailing, spacing: 5) {
+                if !item.images.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(Array(item.images.enumerated()), id: \.offset) { _, data in
+                            if let img = UIImage(data: data) {
+                                Image(uiImage: img).resizable().scaledToFill()
+                                    .frame(width: 84, height: 84)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            }
+                        }
+                    }
+                }
                 Text(item.text)
                     .font(.subheadline)
                     .padding(.horizontal, 16).padding(.vertical, 12)
@@ -389,8 +411,16 @@ struct KeyBar: View {
 struct Composer: View {
     let session: SessionInfo
     @Binding var draft: String
+    @Binding var attachments: [Attachment]
     var focused: FocusState<Bool>.Binding
     let send: () -> Void
+    @State private var showLibrary = false
+    @State private var showCamera = false
+    @State private var picked: [PhotosPickerItem] = []
+
+    private var canSend: Bool {
+        session.status != .ended && (!draft.trimmingCharacters(in: .whitespaces).isEmpty || !attachments.isEmpty)
+    }
 
     private var hint: String {
         if session.status == .ended { return "Session ended" }
@@ -403,8 +433,24 @@ struct Composer: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+        if !attachments.isEmpty { AttachmentStrip(attachments: $attachments).padding(.horizontal, 16) }
         GlassEffectContainer(spacing: 10) {
         HStack(alignment: .bottom, spacing: 10) {
+            Menu {
+                Button { showLibrary = true } label: { Label("Photo Library", systemImage: "photo.on.rectangle") }
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button { showCamera = true } label: { Label("Take Photo", systemImage: "camera") }
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .semibold))
+                    .frame(width: 46, height: 46)
+                    .foregroundStyle(Theme.text)
+                    .glassEffect(.clear.interactive(), in: Circle())
+            }
+            .disabled(session.status == .ended || attachments.count >= 4)
+            .accessibilityLabel("Attach image")
             TextField(hint, text: $draft, axis: .vertical)
                 .lineLimit(1...6)
                 .focused(focused)
@@ -417,13 +463,30 @@ struct Composer: View {
                     .font(.system(size: 17, weight: .bold))
                     .frame(width: 46, height: 46)
                     .foregroundStyle(.white)
-                    .glassEffect(draft.isEmpty ? .clear.interactive() : .clear.tint(Theme.accent.opacity(0.9)).interactive(), in: Circle())
+                    .glassEffect(canSend ? .clear.tint(Theme.accent.opacity(0.9)).interactive() : .clear.interactive(), in: Circle())
             }
-            .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || session.status == .ended)
+            .disabled(!canSend)
         }
         }
         .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 12)
+        }
         .animation(.snappy, value: focused.wrappedValue)
+        .animation(.snappy, value: attachments.count)
+        .photosPicker(isPresented: $showLibrary, selection: $picked, maxSelectionCount: max(1, 4 - attachments.count), matching: .images)
+        .onChange(of: picked) { _, items in
+            guard !items.isEmpty else { return }
+            Task {
+                for item in items {
+                    if let data = try? await item.loadTransferable(type: Data.self), let img = UIImage(data: data), let a = Attachment(img) {
+                        attachments.append(a)
+                    }
+                }
+                picked = []
+            }
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraPicker { img in if let a = Attachment(img) { attachments.append(a) } }.ignoresSafeArea()
+        }
     }
 }
 

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		170C56B22E846FA5A18BE9C3 /* ANSI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F264EBD91F6AF7FC6CC7E8F /* ANSI.swift */; };
 		1FF7065643D86FB0A58C1B1D /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02EA2D9B92A184D002929975 /* Keychain.swift */; };
+		322280156EDEEB33DACD360F /* Attachments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E31A788CF1A82EA14DA7D61 /* Attachments.swift */; };
 		3A4F9418220FDBE47AE98CD5 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C52F20A043369577F2158E3 /* Models.swift */; };
 		5B1D4C3C6CCC1583F12CCC82 /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE0A23BB3453289AC5AED2B /* Notifier.swift */; };
 		6282DC7352907C4104E04FE9 /* BuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 431A3A6D745808D5191587DD /* BuildInfo.swift */; };
@@ -37,6 +38,7 @@
 		3F264EBD91F6AF7FC6CC7E8F /* ANSI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ANSI.swift; sourceTree = "<group>"; };
 		3F438795BF49D8EDF59DF0B5 /* MarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownView.swift; sourceTree = "<group>"; };
 		431A3A6D745808D5191587DD /* BuildInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildInfo.swift; sourceTree = "<group>"; };
+		5E31A788CF1A82EA14DA7D61 /* Attachments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Attachments.swift; sourceTree = "<group>"; };
 		72701CDE2264BBB7CDAB9A06 /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
 		890F6016F451E3FE61D7A4FA /* CCRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CCRemoteApp.swift; sourceTree = "<group>"; };
 		90969201D1D7E07FA5C06F2F /* CCRemote.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CCRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -70,6 +72,7 @@
 			children = (
 				3F264EBD91F6AF7FC6CC7E8F /* ANSI.swift */,
 				BC02D79DE1BAE68C6D778CE5 /* Assets.xcassets */,
+				5E31A788CF1A82EA14DA7D61 /* Attachments.swift */,
 				0FC9D4809EB9C07FCEE5B766 /* BridgeClient.swift */,
 				890F6016F451E3FE61D7A4FA /* CCRemoteApp.swift */,
 				10045F87E99F9EF77A29E8D5 /* Discovery.swift */,
@@ -193,6 +196,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				170C56B22E846FA5A18BE9C3 /* ANSI.swift in Sources */,
+				322280156EDEEB33DACD360F /* Attachments.swift in Sources */,
 				BC5DCA01C94EE623A708D09F /* BridgeClient.swift in Sources */,
 				6282DC7352907C4104E04FE9 /* BuildInfo.swift in Sources */,
 				89DD1AAF116C5B2D22483BBE /* CCRemoteApp.swift in Sources */,

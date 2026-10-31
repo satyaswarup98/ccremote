@@ -74,6 +74,7 @@ final class BridgeClient {
         let text: String
         var status: Status
         var note: String?
+        var images: [Data] = []
     }
 
     func outgoing(for sessionId: String) -> [Outgoing] { outgoing.filter { $0.sessionId == sessionId } }
@@ -82,7 +83,9 @@ final class BridgeClient {
         guard let i = outgoing.firstIndex(where: { $0.id == o.id }) else { return }
         outgoing[i].status = .sending
         outgoing[i].note = nil
-        send(["t": "send", "sessionId": o.sessionId, "text": o.text, "mode": "auto", "clientId": o.id])
+        var m: [String: Any] = ["t": "send", "sessionId": o.sessionId, "text": o.text, "mode": "auto", "clientId": o.id]
+        if !o.images.isEmpty { m["images"] = o.images.map { $0.base64EncodedString() } }
+        send(m)
     }
 
     func dismissOutgoing(_ o: Outgoing) { outgoing.removeAll { $0.id == o.id } }
@@ -420,12 +423,16 @@ final class BridgeClient {
 
     enum SendMode: String { case auto, vscode, fork, queue }
 
-    func sendText(_ text: String, to sessionId: String, mode: SendMode = .auto) {
+    func sendText(_ text: String, to sessionId: String, mode: SendMode = .auto, images: [Data] = []) {
         let id = UUID().uuidString
-        outgoing.append(Outgoing(id: id, sessionId: sessionId, text: text, status: connection == .connected ? .sending : .failed,
-                                 note: connection == .connected ? nil : "Not connected to the Mac"))
+        // The Mac sends this text when only images are attached; matching it later replaces the local bubble.
+        let shown = text.isEmpty && !images.isEmpty ? "Please look at the attached image." : text
+        outgoing.append(Outgoing(id: id, sessionId: sessionId, text: shown, status: connection == .connected ? .sending : .failed,
+                                 note: connection == .connected ? nil : "Not connected to the Mac", images: images))
         guard connection == .connected else { return }
-        send(["t": "send", "sessionId": sessionId, "text": text, "mode": mode.rawValue, "clientId": id])
+        var m: [String: Any] = ["t": "send", "sessionId": sessionId, "text": text, "mode": mode.rawValue, "clientId": id]
+        if !images.isEmpty { m["images"] = images.map { $0.base64EncodedString() } }
+        send(m)
     }
 
     func sendKeys(_ keys: [String], to sessionId: String) {

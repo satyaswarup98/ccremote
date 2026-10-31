@@ -47,6 +47,7 @@ targets:
           UIColorName: LaunchBackground
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIUserInterfaceStyle: Dark
+        NSCameraUsageDescription: CC Remote uses the camera when you choose Take Photo to send a picture to Claude.
         NSLocalNetworkUsageDescription: CC Remote connects to the bridge on your Mac to control your Claude Code sessions.
         NSBonjourServices: [_ccremote._tcp]
         NSAppTransportSecurity:
