@@ -577,7 +577,11 @@ function pollTranscript(s) {
   if (!t || t.file !== s.transcriptPath) { t = new TranscriptTail(s.transcriptPath); tails.set(s.id, t); }
   const fresh = t.poll();
   if (fresh.length) sendToSubscribers(s.id, { t: 'items', sessionId: s.id, items: fresh, reset: false });
+  const waiting = vscodeSends.get(s.id);
+  if (waiting) for (const it of fresh) if (it.kind === 'user') waiting(it.text ?? '');
 }
+
+setInterval(() => { for (const id of vscodeSends.keys()) { const s = sessions.get(id); if (s) pollTranscript(s); } }, 700);
 
 const lastScreen = new Map();
 setInterval(() => {
@@ -771,8 +775,15 @@ async function onPhoneMessage(ws, c, m) {
       const text = String(m.text ?? '').trim();
       if (!s || !text) return;
       const hold = [...pending.values()].find(p => p.info.sessionId === s.id && p.info.kind === 'stop');
-      const idleVSCode = !hold && !s.termId && s.entrypoint.includes('vscode') && s.status !== 'working' && s.status !== 'ended';
-      if ((m.mode === 'vscode' || (m.mode === 'auto' && idleVSCode)) && !hold) {
+      // VS Code chats are typed into whether Claude is idle or working (mid-turn messages reach the
+      // running turn), but never while an approval or question is open there: Return could answer it.
+      const vscodeChat = !hold && !s.termId && s.entrypoint.includes('vscode') && s.status !== 'ended';
+      const promptOpen = [...pending.values()].some(p => p.info.sessionId === s.id && (p.info.kind === 'permission' || p.info.kind === 'question'))
+        || s.status === 'needs_permission';
+      if ((m.mode === 'vscode' || m.mode === 'auto') && vscodeChat && promptOpen) {
+        return toast(ws, 'Claude is waiting on an approval or question in this chat. Answer it first (it’s at the top of the session), then send your message.', 'error');
+      }
+      if ((m.mode === 'vscode' || (m.mode === 'auto' && vscodeChat)) && !hold) {
         return sendToVSCode(ws, s, text, { queueOnFail: m.mode === 'auto' });
       }
       if (m.mode === 'fork' && !hold) {

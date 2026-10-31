@@ -55,6 +55,13 @@ export function parseLine(line) {
     }
     return out;
   }
+  // Messages typed while Claude was working are delivered mid-turn as "queued_command" attachments.
+  if (o.type === 'attachment' && o.attachment?.type === 'queued_command' && !o.isSidechain) {
+    const parts = Array.isArray(o.attachment.prompt) ? o.attachment.prompt : [{ type: 'text', text: String(o.attachment.prompt ?? '') }];
+    const text = parts.filter(c => c.type === 'text').map(c => c.text).join('\n');
+    if (text.trim() && !isNoise(text)) out.items.push({ id: o.uuid, kind: 'user', text: clip(text, MAX_TEXT), ts: o.timestamp });
+    return out;
+  }
   if ((o.type !== 'user' && o.type !== 'assistant') || o.isSidechain || o.isMeta) return out;
   const ts = o.timestamp;
   const content = o.message?.content;
