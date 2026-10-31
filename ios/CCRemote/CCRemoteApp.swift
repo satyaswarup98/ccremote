@@ -12,6 +12,9 @@ struct CCRemoteApp: App {
                 .preferredColorScheme(.dark)
                 .tint(Theme.accent)
                 .onAppear {
+                    #if DEBUG
+                    if ProcessInfo.processInfo.environment["CCR_DEMO"] != nil { return }
+                    #endif
                     Notifier.shared.setup(client: client)
                     client.connect()
                 }
@@ -54,6 +57,17 @@ struct RootView: View {
     var body: some View {
         ZStack(alignment: .top) {
             Theme.background.ignoresSafeArea()
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["CCR_DEMO"] == "questions" {
+                QuestionDemoView()
+            } else if client.pairing == nil {
+                PairingView()
+                    .transition(.opacity)
+            } else {
+                SessionsView()
+                    .transition(.opacity)
+            }
+            #else
             if client.pairing == nil {
                 PairingView()
                     .transition(.opacity)
@@ -61,6 +75,7 @@ struct RootView: View {
                 SessionsView()
                     .transition(.opacity)
             }
+            #endif
             ToastOverlay()
         }
         .animation(.easeInOut, value: client.pairing == nil)

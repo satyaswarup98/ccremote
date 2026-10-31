@@ -162,6 +162,9 @@ struct QuestionForm: View {
     @State private var other: [String: String] = [:]
     @State private var page = 0
     @FocusState private var otherFocused: Bool
+    // Demo/preview only: open on a given page with some options already picked.
+    var startPage = 0
+    var presetPicks: [String: Set<String>] = [:]
 
     private var questions: [Question] { request.questions ?? [] }
     private var submitPage: Int { questions.count }
@@ -197,6 +200,7 @@ struct QuestionForm: View {
             .scrollDismissesKeyboard(.interactively)
             bottomBar
         }
+        .onAppear { if picks.isEmpty { picks = presetPicks; page = startPage } }
     }
 
     // MARK: Tabs
@@ -359,3 +363,50 @@ struct TrailingIconLabelStyle: LabelStyle {
         HStack(spacing: 6) { configuration.title; configuration.icon }
     }
 }
+
+#if DEBUG
+// Launch with CCR_DEMO=questions (and CCR_DEMO_PAGE=0…3) to see the question screen with sample questions.
+enum QuestionDemo {
+    static let request: PendingRequest = {
+        let json = """
+        {"id":"demo","kind":"question","sessionId":"demo","project":"insta_bot","createdAt":0,"answerable":true,
+         "questions":[
+          {"question":"Which database should the reels pipeline use?","header":"Database","multiSelect":false,
+           "options":[{"label":"Postgres","description":"Reliable, good for analytics later"},
+                      {"label":"SQLite","description":"Zero setup, one file"},
+                      {"label":"Supabase","description":"Hosted Postgres with a dashboard"}]},
+          {"question":"Which platforms should it post to?","header":"Platforms","multiSelect":true,
+           "options":[{"label":"Instagram","description":"Reels"},{"label":"YouTube","description":"Shorts"},
+                      {"label":"TikTok","description":null},{"label":"X","description":"Video posts"}]},
+          {"question":"When should it run?","header":"Schedule","multiSelect":false,
+           "options":[{"label":"Every morning","description":"7:00"},{"label":"Twice a day","description":"7:00 and 19:00"},
+                      {"label":"Manually","description":"Only when you start it"}]}
+         ]}
+        """
+        return try! JSONDecoder().decode(PendingRequest.self, from: Data(json.utf8))
+    }()
+
+    static var page: Int { Int(ProcessInfo.processInfo.environment["CCR_DEMO_PAGE"] ?? "0") ?? 0 }
+    // Later pages show earlier questions as answered, like a real walk-through.
+    static var picks: [String: Set<String>] {
+        let qs = request.questions ?? []
+        var out: [String: Set<String>] = [:]
+        if page > 0 { out[qs[0].question] = ["Postgres"] }
+        if page >= 1 { out[qs[1].question] = ["Instagram", "YouTube"] }
+        if page > 2 { out[qs[2].question] = ["Every morning"] }
+        return out
+    }
+}
+
+struct QuestionDemoView: View {
+    var body: some View {
+        NavigationStack {
+            QuestionForm(request: QuestionDemo.request, done: {}, startPage: QuestionDemo.page, presetPicks: QuestionDemo.picks)
+                .background(Theme.background)
+                .navigationTitle("insta_bot")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Later") {} } }
+        }
+    }
+}
+#endif

@@ -16,8 +16,22 @@ targets:
     type: application
     platform: iOS
     sources: [CCRemote]
+    # Stamps each build with a number, commit and time, shown in Settings so you can tell builds apart.
+    preBuildScripts:
+      - name: Build info
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(SRCROOT)/CCRemote/Generated/BuildInfo.swift
+        script: |
+          cd "$SRCROOT"
+          mkdir -p CCRemote/Generated
+          N=$(git rev-list --count HEAD 2>/dev/null || echo 0)
+          H=$(git rev-parse --short HEAD 2>/dev/null || echo download)
+          D=$(date '+%-d %b %H:%M')
+          printf 'enum BuildInfo {\n    static let number = "%s"\n    static let commit = "%s"\n    static let built = "%s"\n}\n' "$N" "$H" "$D" > "$SRCROOT/CCRemote/Generated/BuildInfo.swift"
     settings:
       base:
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
         PRODUCT_BUNDLE_IDENTIFIER: com.satya.ccremote
         PRODUCT_NAME: CCRemote
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

@@ -86,3 +86,21 @@ struct SecondaryButtonStyle: ButtonStyle {
             .foregroundStyle(color)
     }
 }
+
+// "CC Remote 1.0 · build 58 (03728ba) · built 31 Oct 12:40"
+enum AppVersion {
+    static var line: String {
+        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        return "CC Remote \(v) · build \(BuildInfo.number) (\(BuildInfo.commit)) · built \(BuildInfo.built)"
+    }
+}
+
+struct VersionFooter: View {
+    var body: some View {
+        Text(AppVersion.line)
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(Theme.secondary.opacity(0.7))
+            .frame(maxWidth: .infinity)
+            .textSelection(.enabled)
+    }
+}

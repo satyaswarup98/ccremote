@@ -99,6 +99,11 @@ struct SettingsView: View {
                 } footer: {
                     Text("Swipe left on a Mac to remove it from this iPhone. To revoke this iPhone from a Mac instead, run on that Mac: ccr unpair all")
                 }
+
+                Section {
+                } footer: {
+                    VersionFooter().padding(.top, 8)
+                }
             }
             .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.interactively)

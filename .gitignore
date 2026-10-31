@@ -8,3 +8,5 @@ ios/build-sim/
 ios/CCRemote.xcodeproj/xcuserdata/
 ios/CCRemote.xcodeproj/project.xcworkspace/xcuserdata/
 test/
+# Rewritten on every build (build number, commit, time)
+ios/CCRemote/Generated/

@@ -11,6 +11,7 @@
 		1FF7065643D86FB0A58C1B1D /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02EA2D9B92A184D002929975 /* Keychain.swift */; };
 		3A4F9418220FDBE47AE98CD5 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C52F20A043369577F2158E3 /* Models.swift */; };
 		5B1D4C3C6CCC1583F12CCC82 /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE0A23BB3453289AC5AED2B /* Notifier.swift */; };
+		6282DC7352907C4104E04FE9 /* BuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 431A3A6D745808D5191587DD /* BuildInfo.swift */; };
 		7BA9953571A9D1D19FF6E8D7 /* Discovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10045F87E99F9EF77A29E8D5 /* Discovery.swift */; };
 		7DE2DB25E83FD179C76F07C5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BC02D79DE1BAE68C6D778CE5 /* Assets.xcassets */; };
 		89DD1AAF116C5B2D22483BBE /* CCRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 890F6016F451E3FE61D7A4FA /* CCRemoteApp.swift */; };
@@ -35,6 +36,7 @@
 		3C52F20A043369577F2158E3 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		3F264EBD91F6AF7FC6CC7E8F /* ANSI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ANSI.swift; sourceTree = "<group>"; };
 		3F438795BF49D8EDF59DF0B5 /* MarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownView.swift; sourceTree = "<group>"; };
+		431A3A6D745808D5191587DD /* BuildInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildInfo.swift; sourceTree = "<group>"; };
 		72701CDE2264BBB7CDAB9A06 /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
 		890F6016F451E3FE61D7A4FA /* CCRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CCRemoteApp.swift; sourceTree = "<group>"; };
 		90969201D1D7E07FA5C06F2F /* CCRemote.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CCRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -53,6 +55,14 @@
 				90969201D1D7E07FA5C06F2F /* CCRemote.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		9ED2AD2EA03A6D4E8A592CDD /* Generated */ = {
+			isa = PBXGroup;
+			children = (
+				431A3A6D745808D5191587DD /* BuildInfo.swift */,
+			);
+			path = Generated;
 			sourceTree = "<group>";
 		};
 		D8EA4366AEFC2A39F137F65D /* CCRemote */ = {
@@ -75,6 +85,7 @@
 				C4E1AD9917514126031A4DB8 /* SessionsView.swift */,
 				E7EECACA8F5807F60C77D570 /* SettingsView.swift */,
 				A5B2D6EF983748E33690D2CA /* Theme.swift */,
+				9ED2AD2EA03A6D4E8A592CDD /* Generated */,
 			);
 			path = CCRemote;
 			sourceTree = "<group>";
@@ -94,6 +105,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 7E1DE8C4406D126D1728AF1E /* Build configuration list for PBXNativeTarget "CCRemote" */;
 			buildPhases = (
+				F1AAA2DCB475F0E7B6D0F242 /* Build info */,
 				5EB4D8CF73CBC355676C0E13 /* Sources */,
 				4DA19001B480224FD01D8EA2 /* Resources */,
 			);
@@ -152,6 +164,29 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		F1AAA2DCB475F0E7B6D0F242 /* Build info */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build info";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/CCRemote/Generated/BuildInfo.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "cd \"$SRCROOT\"\nmkdir -p CCRemote/Generated\nN=$(git rev-list --count HEAD 2>/dev/null || echo 0)\nH=$(git rev-parse --short HEAD 2>/dev/null || echo download)\nD=$(date '+%-d %b %H:%M')\nprintf 'enum BuildInfo {\\n    static let number = \"%s\"\\n    static let commit = \"%s\"\\n    static let built = \"%s\"\\n}\\n' \"$N\" \"$H\" \"$D\" > \"$SRCROOT/CCRemote/Generated/BuildInfo.swift\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		5EB4D8CF73CBC355676C0E13 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -159,6 +194,7 @@
 			files = (
 				170C56B22E846FA5A18BE9C3 /* ANSI.swift in Sources */,
 				BC5DCA01C94EE623A708D09F /* BridgeClient.swift in Sources */,
+				6282DC7352907C4104E04FE9 /* BuildInfo.swift in Sources */,
 				89DD1AAF116C5B2D22483BBE /* CCRemoteApp.swift in Sources */,
 				7BA9953571A9D1D19FF6E8D7 /* Discovery.swift in Sources */,
 				1FF7065643D86FB0A58C1B1D /* Keychain.swift in Sources */,
@@ -310,6 +346,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CCRemote/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -328,6 +365,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CCRemote/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

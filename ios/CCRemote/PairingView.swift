@@ -30,6 +30,7 @@ struct PairingView: View {
                 howTo
                 macPicker
                 if target != nil { codeEntry.transition(.opacity.combined(with: .move(edge: .bottom))) }
+                VersionFooter().padding(.top, 8)
             }
             .padding(24)
             .animation(.snappy, value: target != nil)
