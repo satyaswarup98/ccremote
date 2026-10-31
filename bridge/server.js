@@ -231,35 +231,69 @@ function scanRegistry() {
 }
 setInterval(scanRegistry, 4000);
 
-// A session started from the phone can stop at Claude Code's "do you trust this folder?" question
-// before any hook runs. Spot it on screen and turn it into a normal approval on the phone.
-const TRUST_RE = /Is this a project you created or one you trust\?|Do you trust the files in this folder\?/;
+// A session started from the phone can stop at Claude Code's first-run screens before any hook runs
+// (Claude has never run in Terminal on that Mac, or never in that folder). Watch its screen and:
+//   theme picker   -> accept the default (only colours)
+//   safety notice  -> ask on the phone, like an approval
+//   folder trust   -> ask on the phone, like an approval
+//   login          -> tell the phone; logging in has to happen on the Mac
+const FIRST_RUN = [
+  { key: 'trust', re: /Is this a project you created or one you trust\?|Do you trust the files in this folder\?/,
+    ask: s => ({ toolName: 'Folder trust', summary: s.cwd,
+      detail: { type: 'command', text: s.cwd, description: 'Claude Code asks whether you trust this folder before it starts. Allow answers "Yes, I trust this folder".' } }),
+    allow: ['down', 'enter'], deny: ['esc'], activity: 'Waiting: trust this folder?' },
+  { key: 'notice', re: /Press Enter to continue/,
+    ask: () => ({ toolName: 'Claude first-time notice', summary: 'Claude can make mistakes; review its actions.',
+      detail: { type: 'command', text: 'Claude can make mistakes. Review its actions, especially when it runs code. Only use it with code you trust.', description: 'Claude Code shows this once, the first time it runs in Terminal on this Mac. Allow continues.' } }),
+    allow: ['enter'], deny: ['ctrlc'], activity: 'Waiting: first-time notice' },
+  { key: 'theme', re: /To change this later, run \/theme|Choose the text style/, auto: ['enter'] },
+  { key: 'login', re: /Select login method|Log in with your Anthropic|login method/i,
+    notice: 'Claude in Terminal needs a one-time login on the Mac: open Terminal there, run claude, and log in. Then start the session again.' },
+];
+
 setInterval(() => {
   for (const s of [...sessions.values()]) {
-    if (!s.placeholder || s.trustAsked) continue;
-    term.capture(s.termId).then(screen => {
-      if (s.trustAsked || !TRUST_RE.test(screen.replace(/\x1b\[[0-9;]*m/g, ''))) return;
-      s.trustAsked = true;
-      s.activity = 'Waiting: trust this folder?';
-      holdRequest({
-        kind: 'permission', sessionId: s.id, project: s.project, toolName: 'Folder trust',
-        summary: s.cwd,
-        detail: { type: 'command', text: s.cwd, description: 'Claude Code asks whether you trust this folder before it starts. Allow answers "Yes, I trust this folder".' },
-        suggestions: [], answerable: true,
-      }, 30 * 60e3).then(async decision => {
+    if (!s.placeholder || s.firstRunBusy) continue;
+    s.firstRunDone ??= new Set();
+    term.capture(s.termId).then(async raw => {
+      const screen = raw.replace(/\x1b\[[0-9;]*m/g, '');
+      const step = FIRST_RUN.find(f => !s.firstRunDone.has(f.key) && f.re.test(screen));
+      if (!step || s.firstRunBusy) return;
+      s.firstRunBusy = true;
+      try {
+        if (step.auto) {
+          await term.sendKeys(s.termId, step.auto);
+          s.firstRunDone.add(step.key);
+          log(`first-run ${step.key}: accepted default in ${s.cwd}`);
+          return;
+        }
+        if (step.notice) {
+          s.firstRunDone.add(step.key);
+          s.activity = 'Needs login on the Mac';
+          broadcastState();
+          notifyPhone({ kind: 'notice', sessionId: s.id, project: s.project, summary: step.notice });
+          log(`first-run ${step.key}: told phone`);
+          return;
+        }
+        s.activity = step.activity;
+        broadcastState();
+        const decision = await holdRequest({
+          kind: 'permission', sessionId: s.id, project: s.project, suggestions: [], answerable: true, ...step.ask(s),
+        }, 30 * 60e3);
         if (!sessions.has(s.id)) return;
+        s.firstRunDone.add(step.key);
         if (decision?.behavior === 'allow') {
-          await term.sendKeys(s.termId, ['down']);
-          await new Promise(r => setTimeout(r, 200));
-          await term.sendKeys(s.termId, ['enter']);
+          for (const k of step.allow) { await term.sendKeys(s.termId, [k]); await new Promise(r => setTimeout(r, 200)); }
           s.activity = 'Starting Claude…';
-          log(`phone trusted folder ${s.cwd}`);
+          log(`first-run ${step.key}: allowed from phone in ${s.cwd}`);
         } else if (decision) {
-          await term.sendKeys(s.termId, ['esc']);
-          log(`phone declined folder trust for ${s.cwd}`);
+          await term.sendKeys(s.termId, step.deny);
+          log(`first-run ${step.key}: declined from phone in ${s.cwd}`);
         }
         broadcastState();
-      });
+      } finally {
+        s.firstRunBusy = false;
+      }
     }).catch(() => {});
   }
 }, 1000);
