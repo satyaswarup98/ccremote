@@ -324,6 +324,32 @@ export async function vscodeSubmit({ sessionId, cwd, text, title }) {
   }
 }
 
+// What Send to VS Code needs from macOS, checked from inside the bridge (that's the process macOS grants).
+//   automation:    may send Apple Events to "System Events" (macOS shows an Allow prompt the first time)
+//   accessibility: may read windows and press keys (System Settings → Privacy & Security → Accessibility)
+export async function checkPermissions({ promptTimeoutMs = 60000 } = {}) {
+  const out = { automation: 'unknown', accessibility: false };
+  try {
+    // Harmless query; the first call makes macOS show the Automation prompt and waits for an answer.
+    await run('/usr/bin/osascript', ['-e', 'tell application "System Events" to get name of first process whose frontmost is true'], { timeout: promptTimeoutMs });
+    out.automation = 'granted';
+  } catch (e) {
+    const msg = String(e.stderr || e.message);
+    out.automation = /-1743|not authori[sz]ed|Not authorized/i.test(msg) ? 'denied' : e.killed ? 'waiting' : 'error';
+    out.automationError = msg.trim().slice(0, 200);
+    return out;
+  }
+  try {
+    // Reading another app's windows needs Accessibility; fails with -1719 / -25211 without it.
+    await run('/usr/bin/osascript', ['-e', 'tell application "System Events" to tell process "Finder" to count windows'], { timeout: 10000 });
+    out.accessibility = true;
+  } catch (e) {
+    out.accessibility = false;
+    out.accessibilityError = String(e.stderr || e.message).trim().slice(0, 200);
+  }
+  return out;
+}
+
 export function hostName() {
   try {
     return execFileSync('/usr/sbin/scutil', ['--get', 'ComputerName'], { encoding: 'utf8' }).trim();

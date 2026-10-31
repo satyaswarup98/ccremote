@@ -117,6 +117,40 @@ function addVSCodeKeybinding() {
   return 'added';
 }
 
+// Walks through the macOS permissions Send to VS Code needs, while someone is at the Mac, so later
+// phone messages work hands-free. Safe to re-run: granted permissions are just confirmed.
+async function setupPermissions() {
+  if (!fs.existsSync('/Applications/Visual Studio Code.app')) return;
+  const ask = async (prompt) => (await fetch(`http://127.0.0.1:${LOCAL_PORT}/ctl/permissions${prompt ? '?prompt=1' : ''}`, {
+    headers: { 'X-Secret': readSecret() }, signal: AbortSignal.timeout(120000),
+  }).then(r => r.json()).catch(() => null));
+  const pane = name => execFileSync('/usr/bin/open', [`x-apple.systempreferences:com.apple.preference.security?Privacy_${name}`]);
+
+  console.log(`\n${c.o('▸')} ${c.b('Permissions for typing phone messages into VS Code')}`);
+  console.log(c.d('  If macOS asks whether "node" may control "System Events", click Allow.'));
+  let p = await ask(true);
+  if (!p) { console.log(c.r('  Could not reach the bridge to check permissions; run: ccr permissions')); return; }
+  if (p.automation !== 'granted') {
+    console.log(`  ${c.r('✗')} Control of "System Events" isn't allowed yet.`);
+    console.log('    System Settings → Privacy & Security → Automation → node → turn on "System Events".');
+    try { pane('Automation'); } catch {}
+    for (let i = 0; i < 90 && p?.automation !== 'granted'; i++) { await sleep(2000); p = await ask(false); }
+    if (p?.automation !== 'granted') { console.log(c.r('  Still not allowed. Run ccr permissions later.')); return; }
+  }
+  console.log(`  ${c.g('✓')} Control of "System Events"`);
+  if (!p.accessibility) {
+    console.log(`  ${c.o('→')} Turn on ${c.b('node')} in the Accessibility list that just opened.`);
+    console.log(c.d(`    Not in the list? Click +, press ⌘⇧G, paste ${p.node} and click Open.`));
+    try { pane('Accessibility'); } catch {}
+    process.stdout.write(c.d('    Waiting…'));
+    for (let i = 0; i < 90 && !p?.accessibility; i++) { await sleep(2000); p = await ask(false); }
+    console.log('\r' + ' '.repeat(20) + '\r');
+    if (!p?.accessibility) { console.log(c.r('  Accessibility is still off. Turn it on, then run: ccr permissions')); return; }
+  }
+  console.log(`  ${c.g('✓')} Accessibility`);
+  console.log(c.g('  All set: phone messages can be typed into VS Code without anyone at the Mac.'));
+}
+
 function launchctl(...args) {
   try { execFileSync('/bin/launchctl', args, { stdio: 'ignore' }); return true; } catch { return false; }
 }
@@ -201,7 +235,8 @@ async function install() {
     if (!current.includes(line)) fs.appendFileSync(zprofile, `\n# CC Remote commands (ccr, cc)\n${line}\n`);
     console.log(c.d(`  (open a new Terminal window for the ccr and cc commands to work)`));
   }
-  console.log(`${c.g('✓')} Commands available: ${c.b('ccr')} (control) and ${c.b('cc')} (Claude in tmux, with live mirror)`);
+  console.log(`${c.g('✓')} Commands available: ${c.b('ccr')} (control) and ${c.b('cc')} (Claude in a terminal session, with live mirror)`);
+  await setupPermissions();
   console.log(`\nNext: run ${c.o('ccr pair')} and type the code into the iPhone app.`);
 }
 
@@ -291,6 +326,7 @@ switch (cmd) {
     console.log(r.error ?? `away mode: ${r.awayMode} (currently ${r.away ? 'away' : 'at Mac'})`);
     break;
   }
+  case 'permissions': await setupPermissions(); break;
   case 'devices': await devicesCmd(args); break;
   case 'unpair': await devicesCmd(['unpair', ...args]); break;
   case 'logs': execFileSync('/usr/bin/tail', ['-n', '60', '-f', LOG_FILE], { stdio: 'inherit' }); break;
@@ -302,5 +338,6 @@ switch (cmd) {
   ccr status           sessions, away state, connected phones
   ccr away on|off|auto hold prompts for the phone (auto = when Mac idle ${'>'}2 min)
   ccr devices          list paired phones;  ccr unpair <id|all>
+  ccr permissions      check/ask for the macOS permissions VS Code typing needs
   ccr logs | restart | uninstall | start (foreground)`);
 }

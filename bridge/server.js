@@ -12,7 +12,7 @@ import {
   ensureStateDir, loadConfig, saveConfig, readSecret, certFingerprint,
 } from './lib/paths.js';
 import { TranscriptTail, toolSummary, PHONE_PREFIX } from './lib/transcript.js';
-import { macIdleSeconds, findClaudeBinary, term, hostName, vscodeSubmit, vscodeWindowTitles } from './lib/system.js';
+import { macIdleSeconds, findClaudeBinary, term, hostName, vscodeSubmit, vscodeWindowTitles, checkPermissions } from './lib/system.js';
 
 ensureStateDir();
 let config = loadConfig();
@@ -941,6 +941,10 @@ const local = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && req.url === '/ctl/vscode-windows') {
       return json(res, 200, { titles: await vscodeWindowTitles().catch(e => [`error: ${e.stderr || e.message}`]) });
+    }
+    if (req.method === 'GET' && req.url.startsWith('/ctl/permissions')) {
+      const prompt = req.url.includes('prompt=1');
+      return json(res, 200, { ...(await checkPermissions({ promptTimeoutMs: prompt ? 90000 : 8000 })), node: process.execPath });
     }
     if (req.method === 'POST' && req.url === '/ctl/reload') {
       config = loadConfig();
