@@ -1,0 +1,6 @@
+.DS_Store
+bridge/node_modules/
+ios/build/
+ios/build-sim/
+ios/CCRemote.xcodeproj/
+test/

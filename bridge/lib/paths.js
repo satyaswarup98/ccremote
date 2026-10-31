@@ -1,0 +1,75 @@
+import os from 'node:os';
+import path from 'node:path';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+
+export const HOME = os.homedir();
+export const STATE_DIR = path.join(HOME, '.ccremote');
+export const TLS_DIR = path.join(STATE_DIR, 'tls');
+export const CONFIG_FILE = path.join(STATE_DIR, 'config.json');
+export const DEVICES_FILE = path.join(STATE_DIR, 'devices.json');
+export const SECRET_FILE = path.join(STATE_DIR, 'hook.secret');
+export const LOG_FILE = path.join(STATE_DIR, 'bridge.log');
+export const LOCAL_PORT = 8788;   // hooks + CLI, loopback only
+export const PUBLIC_PORT = 8787;  // phone, TLS
+
+const DEFAULT_CONFIG = {
+  port: PUBLIC_PORT,
+  // 'auto' = away when the Mac has had no keyboard/mouse input for idleThresholdSec
+  awayMode: 'auto',
+  idleThresholdSec: 120,
+  // how long a finished turn waits for a message from the phone while away
+  stopHoldSec: 840,
+  ntfyServer: 'https://ntfy.sh',
+  ntfyTopic: null,
+  ntfyDetail: true,
+};
+
+export function ensureStateDir() {
+  fs.mkdirSync(TLS_DIR, { recursive: true, mode: 0o700 });
+  if (!fs.existsSync(SECRET_FILE)) {
+    fs.writeFileSync(SECRET_FILE, crypto.randomBytes(24).toString('hex'), { mode: 0o600 });
+  }
+  if (!fs.existsSync(path.join(TLS_DIR, 'cert.pem'))) {
+    // Needs OpenSSL 3: macOS's LibreSSL writes v1 certs with explicit curve params, which iOS rejects.
+    const openssl = ['/opt/homebrew/opt/openssl@3/bin/openssl', '/usr/local/opt/openssl@3/bin/openssl'].find(p => fs.existsSync(p));
+    if (!openssl) throw new Error('OpenSSL 3 not found: brew install openssl@3');
+    execFileSync(openssl, [
+      'req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-pkeyopt', 'ec_param_enc:named_curve',
+      '-nodes', '-days', '825', '-sha256', '-subj', '/CN=ccremote-bridge',
+      '-addext', 'subjectAltName=DNS:ccremote-bridge',
+      '-addext', 'extendedKeyUsage=serverAuth',
+      '-addext', 'basicConstraints=critical,CA:FALSE',
+      '-keyout', path.join(TLS_DIR, 'key.pem'), '-out', path.join(TLS_DIR, 'cert.pem'),
+    ], { stdio: 'ignore' });
+    fs.chmodSync(path.join(TLS_DIR, 'key.pem'), 0o600);
+  }
+  const cfg = loadConfig();
+  if (!cfg.ntfyTopic) {
+    cfg.ntfyTopic = 'ccr-' + crypto.randomBytes(12).toString('hex');
+    saveConfig(cfg);
+  }
+}
+
+export function loadConfig() {
+  try {
+    return { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) };
+  } catch {
+    return { ...DEFAULT_CONFIG };
+  }
+}
+
+export function saveConfig(cfg) {
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), { mode: 0o600 });
+}
+
+export function readSecret() {
+  return fs.readFileSync(SECRET_FILE, 'utf8').trim();
+}
+
+// SHA-256 of the certificate's DER bytes, the same value iOS computes from SecCertificateCopyData.
+export function certFingerprint() {
+  const pem = fs.readFileSync(path.join(TLS_DIR, 'cert.pem'), 'utf8');
+  return new crypto.X509Certificate(pem).fingerprint256.replace(/:/g, '').toLowerCase();
+}

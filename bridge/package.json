@@ -1,0 +1,9 @@
+{
+  "name": "ccremote-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mac-side bridge between Claude Code sessions and the CC Remote iPhone app",
+  "bin": { "ccr": "./ccr.js" },
+  "dependencies": { "ws": "^8.18.0" }
+}

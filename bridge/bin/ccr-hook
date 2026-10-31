@@ -1,0 +1,13 @@
+#!/bin/sh
+# Forwards one Claude Code hook event (stdin JSON) to the CC Remote bridge and prints its reply.
+# If the bridge is not running, curl fails fast and the hook is a silent no-op.
+S="$HOME/.ccremote/hook.secret"
+[ -r "$S" ] || exit 0
+/usr/bin/curl -s --fail -m 3700 -X POST --data-binary @- \
+  -H "Content-Type: application/json" \
+  -H "X-Secret: $(cat "$S")" \
+  -H "X-Tmux-Pane: ${TMUX_PANE:-}" \
+  -H "X-Entrypoint: ${CLAUDE_CODE_ENTRYPOINT:-}" \
+  -H "X-Ccr-Origin: ${CCR_ORIGIN:-}" \
+  http://127.0.0.1:8788/hook 2>/dev/null
+exit 0
