@@ -327,6 +327,13 @@ switch (cmd) {
     break;
   }
   case 'permissions': await setupPermissions(); break;
+  case 'test-notify': {
+    const r = await api('POST', '/ctl/test-notify');
+    if (r.error) { console.log(c.r(`ntfy didn't accept it: ${r.error}`)); break; }
+    console.log(`${c.g('✓')} Sent to ntfy (message ${r.id}). Your iPhone should show it within a few seconds.`);
+    console.log(c.d(`  Not arriving? In the ntfy app, subscribe to topic ${r.topic} on ntfy.sh and allow ntfy's notifications.`));
+    break;
+  }
   case 'devices': await devicesCmd(args); break;
   case 'unpair': await devicesCmd(['unpair', ...args]); break;
   case 'logs': execFileSync('/usr/bin/tail', ['-n', '60', '-f', LOG_FILE], { stdio: 'inherit' }); break;
@@ -339,5 +346,6 @@ switch (cmd) {
   ccr away on|off|auto hold prompts for the phone (auto = when Mac idle ${'>'}2 min)
   ccr devices          list paired phones;  ccr unpair <id|all>
   ccr permissions      check/ask for the macOS permissions VS Code typing needs
+  ccr test-notify      send a test notification to the phone (via ntfy)
   ccr logs | restart | uninstall | start (foreground)`);
 }

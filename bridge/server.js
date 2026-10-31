@@ -648,6 +648,18 @@ function describe(info) {
   return { title, subtitle: NOTICE[info.kind]?.subtitle ?? '', body };
 }
 
+// Sends one ntfy push, regardless of whether the app is open (used by `ccr test-notify`).
+async function ntfyPush({ title, message, priority = 4, tags = ['bell'], click }) {
+  const res = await fetch(config.ntfyServer, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic: config.ntfyTopic, title, message, priority, tags, click }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`ntfy answered ${res.status}`);
+  return res.json();
+}
+
 async function notifyPhone(info) {
   // Only phones paired with this Mac get anything; nothing is sent before pairing.
   if (!devices.length) return;
@@ -946,6 +958,14 @@ const local = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url.startsWith('/ctl/permissions')) {
       const prompt = req.url.includes('prompt=1');
       return json(res, 200, { ...(await checkPermissions({ promptTimeoutMs: prompt ? 90000 : 8000 })), node: process.execPath });
+    }
+    if (req.method === 'POST' && req.url === '/ctl/test-notify') {
+      const r = await ntfyPush({
+        title: 'CC Remote test — notifications work',
+        message: `Sent from ${HOST} at ${new Date().toLocaleTimeString()}. Tap to open CC Remote.`,
+        click: `ccremote://open?mac=${FINGERPRINT.slice(0, 16)}`,
+      }).catch(e => ({ error: e.message }));
+      return json(res, 200, { ...r, topic: config.ntfyTopic });
     }
     if (req.method === 'POST' && req.url === '/ctl/reload') {
       config = loadConfig();
