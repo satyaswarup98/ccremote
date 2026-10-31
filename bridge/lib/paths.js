@@ -24,8 +24,10 @@ const DEFAULT_CONFIG = {
   stopHoldSec: 3540,
   // Keep the Mac from sleeping while it's on power, so the phone can reach it (caffeinate -s).
   keepAwakeOnPower: true,
-  // Send to VS Code only types after this many seconds without keyboard/mouse input on the Mac.
-  vscodeIdleSec: 8,
+  // Send to VS Code waits for a pause this long in keyboard/mouse input (so it doesn't mix with your
+  // typing), for up to vscodeWaitSec, then types quickly and returns you to the app you were in.
+  vscodeQuietSec: 1.5,
+  vscodeWaitSec: 20,
   ntfyServer: 'https://ntfy.sh',
   ntfyTopic: null,
   ntfyDetail: true,

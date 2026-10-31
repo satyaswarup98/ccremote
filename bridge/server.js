@@ -859,8 +859,16 @@ async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
   };
   if (vscodeSends.has(s.id)) return toast(ws, 'Still sending the previous message to this session…');
   // Typing into VS Code while someone is using the Mac would land in whatever they're doing.
-  if (idleSec < config.vscodeIdleSec) {
-    return failed(`The Mac was used in the last ${config.vscodeIdleSec} seconds, so CC Remote didn't type into VS Code (it could mix with your typing). Leave the Mac for a few seconds and send again.`);
+  // Typing into VS Code while someone types elsewhere would mix the two: wait for a short pause.
+  const quiet = config.vscodeQuietSec ?? 1.5;
+  const deadline = Date.now() + (config.vscodeWaitSec ?? 20) * 1000;
+  let now = await macIdleSeconds();
+  while (now < quiet && Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 250));
+    now = await macIdleSeconds();
+  }
+  if (now < quiet) {
+    return failed(`Someone was typing on the Mac nonstop for ${config.vscodeWaitSec ?? 20} seconds, so CC Remote didn't type into VS Code.`);
   }
   const title = tails.get(s.id)?.title ?? s.title ?? null;
   if (!title) return failed("This session doesn't have a title yet, so CC Remote can't confirm it's typing into the right VS Code tab.");

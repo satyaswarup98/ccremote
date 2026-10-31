@@ -187,6 +187,11 @@ export async function macLocked() {
   }
 }
 
+async function frontmostBundleId() {
+  const { stdout } = await run('/usr/bin/osascript', ['-e', 'tell application "System Events" to get bundle identifier of first process whose frontmost is true'], { timeout: 8000 });
+  return stdout.trim();
+}
+
 async function frontmostApp() {
   // macOS may be showing a permission prompt for this; don't wait on it forever.
   const { stdout } = await run('/usr/bin/osascript', ['-e', 'tell application "System Events" to name of first process whose frontmost is true'], { timeout: 8000 });
@@ -266,6 +271,8 @@ export async function vscodeSubmit({ sessionId, cwd, text, title }) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   if (await macLocked()) throw fail('locked');
   if (!fs.existsSync('/Applications/Visual Studio Code.app')) throw fail('no-vscode');
+  // Remember where the user is, to put them back afterwards.
+  const previous = await frontmostBundleId().catch(() => null);
   // VS Code may be behind other apps or hidden (⌘H); a hidden app reports no windows at all, so bring it
   // forward first. (Activating doesn't launch it if it isn't running.)
   const running = await run('/usr/bin/pgrep', ['-x', 'Code']).then(() => true, () => false);
@@ -329,6 +336,10 @@ export async function vscodeSubmit({ sessionId, cwd, text, title }) {
     throw fail('accessibility', String(e.stderr || e.message));
   } finally {
     setTimeout(() => clipboardSet(saved).catch(() => {}), 800);
+    // Back to whatever app the user was in.
+    if (previous && previous !== 'com.microsoft.VSCode') {
+      setTimeout(() => run('/usr/bin/osascript', ['-e', `tell application id "${previous.replace(/"/g, '')}" to activate`], { timeout: 8000 }).catch(() => {}), 300);
+    }
   }
 }
 
