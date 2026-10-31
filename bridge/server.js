@@ -393,9 +393,16 @@ function clearAnsweredElsewhere(ev) {
   const kind = ev.hook_event_name;
   if (kind === 'PostToolUse' || kind === 'PostToolUseFailure') {
     const key = `${ev.tool_name}:${JSON.stringify(ev.tool_input ?? {})}`;
-    for (const p of [...pending.values()]) if (p.info.sessionId === ev.session_id && p.key === key) p.resolve(null);
+    for (const p of [...pending.values()]) {
+      if (p.info.sessionId !== ev.session_id) continue;
+      // Answering a question on the Mac adds the answers to its input, so match questions by tool name.
+      if (p.key === key || (p.info.kind === 'question' && p.info.toolName === ev.tool_name)) p.resolve(null);
+    }
   } else if (kind === 'UserPromptSubmit' || kind === 'Stop' || kind === 'SessionEnd') {
-    releaseSession(ev.session_id, ['permission']);
+    releaseSession(ev.session_id, ['permission', 'question']);
+  } else if (kind === 'PreToolUse' && ev.tool_name !== 'AskUserQuestion') {
+    // Claude has moved on to another tool, so any question it asked has been answered.
+    releaseSession(ev.session_id, ['question']);
   }
 }
 
@@ -845,51 +852,40 @@ async function onPhoneMessage(ws, c, m) {
       const s = sessions.get(m.sessionId);
       const text = String(m.text ?? '').trim();
       if (!s || !text) return;
+      // The phone shows the message right away and updates it from this result (sent / queued / failed).
+      const report = (status, note = null) => {
+        if (m.clientId && ws.readyState === 1) ws.send(JSON.stringify({ t: 'sendResult', clientId: m.clientId, sessionId: s.id, status, note }));
+        if (!m.clientId && note) toast(ws, note, status === 'failed' ? 'error' : 'info');
+      };
+      const enqueue = note => { const q = queued.get(s.id) ?? []; q.push(text); queued.set(s.id, q); broadcastState(); report('queued', note); };
       const hold = [...pending.values()].find(p => p.info.sessionId === s.id && p.info.kind === 'stop');
       if (s.phone && !hold) {
-        if (running.has(s.id)) {
-          // A turn is running: Claude picks this up when that turn stops.
-          const q = queued.get(s.id) ?? [];
-          q.push(text); queued.set(s.id, q); broadcastState();
-          return toast(ws, 'Claude is working on this one. It gets your message as soon as this step finishes.');
-        }
+        if (running.has(s.id)) return enqueue('Claude gets it as soon as this step finishes.');
         runPhoneTurn(ws, { cwd: s.rootDir ?? s.cwd, text, resumeId: s.id });
         s.status = 'working'; s.activity = 'Thinking…'; s.lastPrompt = text.slice(0, 500); broadcastState();
-        return toast(ws, 'Sent ✓');
+        return report('sent');
       }
       // VS Code chats are typed into whether Claude is idle or working (mid-turn messages reach the
       // running turn), but never while an approval or question is open there: Return could answer it.
       const vscodeChat = !hold && !s.termId && !s.phone && s.entrypoint.includes('vscode') && s.status !== 'ended';
       const promptOpen = [...pending.values()].some(p => p.info.sessionId === s.id && (p.info.kind === 'permission' || p.info.kind === 'question'))
         || s.status === 'needs_permission';
-      if ((m.mode === 'vscode' || m.mode === 'auto') && vscodeChat && promptOpen) {
+      if (vscodeChat && promptOpen) {
         log(`vscode send held back for ${s.project}: approval or question open`);
-        return toast(ws, 'Claude is waiting on an approval or question in this chat. Answer it first (it’s at the top of the session), then send your message.', 'error');
+        return report('failed', 'Claude is waiting on an approval or question in this chat. Answer it first, then send again.');
       }
-      if ((m.mode === 'vscode' || (m.mode === 'auto' && vscodeChat)) && !hold) {
-        return sendToVSCode(ws, s, text, { queueOnFail: m.mode === 'auto' });
-      }
-      if (m.mode === 'fork' && !hold) {
-        // Idle VS Code session: run the message now in a terminal copy of the conversation.
-        const title = `Copy: ${tails.get(s.id)?.title ?? s.title ?? s.name ?? s.project}`;
-        return launchTerminal(ws, s.cwd || os.homedir(), ['--resume', s.id, '--fork-session', text], title);
-      }
+      if (vscodeChat) return sendToVSCode(ws, s, text, { queueOnFail: true, report });
       if (hold) {
         log(`phone message -> ${s.project} (via held Stop)`);
-        return hold.resolve(text);
+        hold.resolve(text);
+        return report('sent');
       }
       if (s.termId && await term.paneAlive(s.termId)) {
         log(`phone message -> ${s.project} (via terminal)`);
         await term.sendText(s.termId, text);
-        return toast(ws, 'Sent');
+        return report('sent');
       }
-      const q = queued.get(s.id) ?? [];
-      q.push(text);
-      queued.set(s.id, q);
-      broadcastState();
-      return toast(ws, s.status === 'working'
-        ? 'Queued: Claude gets it as soon as this turn finishes.'
-        : 'Queued. This session is idle in VS Code, so it gets the message the next time Claude stops. Turn on Away mode before you leave the Mac to keep sessions reachable.');
+      return enqueue(s.status === 'working' ? 'Claude gets it as soon as this turn finishes.' : 'Claude gets it the next time it stops in this session.');
     }
 
     case 'unqueue':
@@ -934,17 +930,18 @@ async function onPhoneMessage(ws, c, m) {
 
 // Delivers a phone message into the real VS Code session: pre-fill via the extension's URI handler,
 // press Return, then confirm with that session's own UserPromptSubmit hook.
-async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
+async function sendToVSCode(ws, s, text, { queueOnFail = false, report = null } = {}) {
+  report ??= (status, note) => { if (note) toast(ws, note, status === 'failed' ? 'error' : 'info'); };
   const failed = msg => {
     log(`vscode send not done for ${s.project}: ${msg.slice(0, 120)}`);
-    if (!queueOnFail) return toast(ws, msg, 'error');
+    if (!queueOnFail) return report('failed', msg);
     const q = queued.get(s.id) ?? [];
     q.push(text);
     queued.set(s.id, q);
     broadcastState();
-    return toast(ws, `${msg}\n\nQueued instead: Claude gets it the next time it stops in this session.`, 'error');
+    return report('queued', `${msg} Queued instead: Claude gets it the next time it stops in this session.`);
   };
-  if (vscodeSends.has(s.id)) return toast(ws, 'Still sending the previous message to this session…');
+  if (vscodeSends.has(s.id)) return report('failed', 'Still sending the previous message to this session. Try again in a moment.');
   // Typing into VS Code while someone is using the Mac would land in whatever they're doing.
   // Typing into VS Code while someone types elsewhere would mix the two: wait for a short pause.
   const quiet = config.vscodeQuietSec ?? 1.5;
@@ -979,7 +976,7 @@ async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
     return (tails.get(s.id)?.items ?? []).slice(-40).some(i => i.kind === 'user' && norm(i.text).includes(want));
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const ok = () => { log(`phone message -> ${s.project} (VS Code)`); return toast(ws, 'Sent to VS Code ✓'); };
+  const ok = () => { log(`phone message -> ${s.project} (VS Code)`); return report('sent'); };
 
   // Up to two tries. A retry only happens when the message is confirmed NOT to be in the chat,
   // so a slow confirmation never turns into a duplicate.
@@ -1007,9 +1004,9 @@ async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
       await sleep(500);
     }
     log(`vscode send unconfirmed for ${s.project} (try ${attempt})`);
-    if (attempt === 1) toast(ws, 'Not confirmed yet, sending again…');
+    if (attempt === 1) report('sending', 'Not confirmed yet, sending again…');
   }
-  return toast(ws, "CC Remote typed your message twice but couldn't confirm it reached the chat. Check the session on the Mac before sending again.", 'error');
+  return report('failed', "Typed twice but not confirmed. Check the chat on the Mac before sending again.");
 }
 
 // Sessions started from the phone run headless on the Mac with Claude Code's own CLI: the first turn as

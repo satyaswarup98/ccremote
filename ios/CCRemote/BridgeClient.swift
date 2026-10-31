@@ -64,6 +64,41 @@ final class BridgeClient {
     private(set) var screen: String = ""
     private(set) var recentDirs: [String] = []
     private(set) var notifications: [NotificationItem] = []
+    // Messages sent from this phone, shown straight away and updated as the Mac reports back.
+    private(set) var outgoing: [Outgoing] = []
+
+    struct Outgoing: Identifiable, Equatable {
+        enum Status: String { case sending, sent, queued, failed }
+        let id: String
+        let sessionId: String
+        let text: String
+        var status: Status
+        var note: String?
+    }
+
+    func outgoing(for sessionId: String) -> [Outgoing] { outgoing.filter { $0.sessionId == sessionId } }
+
+    func retry(_ o: Outgoing) {
+        guard let i = outgoing.firstIndex(where: { $0.id == o.id }) else { return }
+        outgoing[i].status = .sending
+        outgoing[i].note = nil
+        send(["t": "send", "sessionId": o.sessionId, "text": o.text, "mode": "auto", "clientId": o.id])
+    }
+
+    func dismissOutgoing(_ o: Outgoing) { outgoing.removeAll { $0.id == o.id } }
+
+    private static func norm(_ t: String) -> String {
+        t.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    }
+
+    // Once the message shows up in the chat itself, the local copy isn't needed any more.
+    private func reconcileOutgoing(with newItems: [TranscriptItem], sessionId: String) {
+        let arrived = newItems.filter { $0.kind == "user" }.map { Self.norm($0.text ?? "") }
+        guard !arrived.isEmpty else { return }
+        outgoing.removeAll { o in
+            o.sessionId == sessionId && o.status != .failed && arrived.contains { $0.contains(Self.norm(o.text).prefix(200)) }
+        }
+    }
     private(set) var notificationsSeenAt: Double = 0
     var hasUnreadNotifications: Bool { (notifications.first?.at ?? 0) > notificationsSeenAt }
     var toast: Toast?
@@ -289,6 +324,7 @@ final class BridgeClient {
                 let known = Set(items.map(\.id))
                 items.append(contentsOf: m.items.filter { !known.contains($0.id) })
             }
+            reconcileOutgoing(with: m.items, sessionId: m.sessionId)
             if items.count > 500 { items.removeFirst(items.count - 500) }
         case "screen":
             guard let m = try? dec.decode(ScreenMsg.self, from: data), m.sessionId == subscribed else { return }
@@ -308,6 +344,12 @@ final class BridgeClient {
         case "opened":
             guard let m = try? dec.decode(OpenedMsg.self, from: data) else { return }
             openSessionId = m.sessionId
+        case "sendResult":
+            guard let m = try? dec.decode(SendResultMsg.self, from: data),
+                  let i = outgoing.firstIndex(where: { $0.id == m.clientId }) else { return }
+            outgoing[i].status = Outgoing.Status(rawValue: m.status) ?? .sent
+            outgoing[i].note = m.note
+            if outgoing[i].status == .failed { UINotificationFeedbackGenerator().notificationOccurred(.error) }
         case "notifications":
             guard let m = try? dec.decode(NotificationsMsg.self, from: data) else { return }
             notifications = m.items
@@ -332,6 +374,7 @@ final class BridgeClient {
         let item: NotificationItem?
     }
     private struct NotificationsMsg: Decodable { let items: [NotificationItem] }
+    private struct SendResultMsg: Decodable { let clientId: String; let status: String; let note: String? }
     private struct NotificationMsg: Decodable { let item: NotificationItem }
 
     private func addNotification(_ item: NotificationItem) {
@@ -378,7 +421,11 @@ final class BridgeClient {
     enum SendMode: String { case auto, vscode, fork, queue }
 
     func sendText(_ text: String, to sessionId: String, mode: SendMode = .auto) {
-        send(["t": "send", "sessionId": sessionId, "text": text, "mode": mode.rawValue])
+        let id = UUID().uuidString
+        outgoing.append(Outgoing(id: id, sessionId: sessionId, text: text, status: connection == .connected ? .sending : .failed,
+                                 note: connection == .connected ? nil : "Not connected to the Mac"))
+        guard connection == .connected else { return }
+        send(["t": "send", "sessionId": sessionId, "text": text, "mode": mode.rawValue, "clientId": id])
     }
 
     func sendKeys(_ keys: [String], to sessionId: String) {

@@ -70,14 +70,15 @@ struct Card<Content: View>: View {
 
 struct StatusPill: View {
     let status: SessionStatus
+    var compact = false
     var body: some View {
         HStack(spacing: 6) {
             Circle().fill(Theme.color(for: status)).frame(width: 7, height: 7)
                 .modifier(Pulse(active: status == .working || status.needsYou))
-            Text(status.label).font(.caption.weight(.semibold))
+            Text(compact ? status.shortLabel : status.label).font(.caption.weight(.semibold))
         }
         .foregroundStyle(Theme.color(for: status))
-        .padding(.horizontal, 12).padding(.vertical, 6)
+        .padding(.horizontal, compact ? 9 : 12).padding(.vertical, compact ? 4 : 6)
         .glassEffect(.clear.tint(Theme.color(for: status).opacity(0.3)), in: Capsule())
     }
 }

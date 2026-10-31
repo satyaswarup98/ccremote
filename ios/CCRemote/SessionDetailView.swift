@@ -30,7 +30,6 @@ struct SessionDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let s = session {
-                header(s)
                 if s.hasMirror {
                     Picker("", selection: $tab) {
                         Text("Chat").tag(Tab.chat)
@@ -61,8 +60,11 @@ struct SessionDetailView: View {
             }
         }
         .appBackground()
-        .navigationTitle(session?.project ?? "")
+        .navigationTitle(session?.title ?? session?.project ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let s = session { ToolbarItem(placement: .topBarTrailing) { SessionToolbarStatus(session: s) } }
+        }
         .onAppear {
             client.subscribe(sessionId)
             if session?.hasMirror == true && session?.isVSCode == false { tab = .terminal }
@@ -70,32 +72,31 @@ struct SessionDetailView: View {
         .onDisappear { client.unsubscribe(sessionId) }
         .sheet(item: $activeRequest) { req in RequestSheet(request: req) }
     }
+}
 
-    private func header(_ s: SessionInfo) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                StatusPill(status: s.status)
-                if let mode = s.permissionMode, mode != "default" {
-                    Text(mode).font(.caption2.weight(.semibold)).foregroundStyle(Theme.secondary)
-                        .padding(.horizontal, 8).padding(.vertical, 4).background(Theme.cardRaised, in: Capsule())
+/// Compact status for the navigation bar: status pill, permission mode, and a queued count.
+struct SessionToolbarStatus: View {
+    let session: SessionInfo
+    @Environment(BridgeClient.self) private var client
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if session.queued > 0 {
+                Button { client.clearQueue(session.id) } label: {
+                    Label("\(session.queued)", systemImage: "tray.full").font(.caption2.weight(.semibold))
                 }
-                Spacer()
-                if s.queued > 0 {
-                    Button { client.clearQueue(s.id) } label: {
-                        Label("\(s.queued) queued", systemImage: "xmark.circle").font(.caption)
-                    }
-                    .tint(Theme.amber)
-                }
+                .tint(Theme.amber)
+                .accessibilityLabel("\(session.queued) queued. Tap to clear.")
             }
-            if let a = s.activity, s.status == .working {
-                Text(a).font(.caption.monospaced()).foregroundStyle(Theme.blue).lineLimit(1)
+            if let mode = session.permissionMode, mode != "default" {
+                Text(Self.short(mode)).font(.caption2.weight(.semibold)).foregroundStyle(Theme.secondary)
             }
-            if let cwd = s.cwd {
-                Text(cwd.replacingOccurrences(of: "/Users/\(cwd.split(separator: "/").dropFirst().first ?? "")", with: "~"))
-                    .font(.caption2.monospaced()).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.head)
-            }
+            StatusPill(status: session.status, compact: true)
         }
-        .padding(.horizontal, 20).padding(.vertical, 10)
+    }
+
+    static func short(_ mode: String) -> String {
+        switch mode { case "acceptEdits": "edits"; case "bypassPermissions": "bypass"; default: mode }
     }
 }
 
@@ -104,6 +105,7 @@ struct SessionDetailView: View {
 struct ChatTranscript: View {
     let items: [TranscriptItem]
     let session: SessionInfo
+    @Environment(BridgeClient.self) private var client
 
     private var results: [String: TranscriptItem] {
         Dictionary(items.filter { $0.kind == "result" }.compactMap { i in i.toolUseId.map { ($0, i) } }, uniquingKeysWith: { a, _ in a })
@@ -127,6 +129,9 @@ struct ChatTranscript: View {
                         default: EmptyView()
                         }
                     }
+                    ForEach(client.outgoing(for: session.id)) { o in
+                        OutgoingBubble(item: o)
+                    }
                     if session.status == .working {
                         HStack(spacing: 8) {
                             ProgressView().controlSize(.small)
@@ -142,6 +147,7 @@ struct ChatTranscript: View {
             .scrollDismissesKeyboard(.interactively)
             .onTapGesture { hideKeyboard() }
             .onChange(of: items.count) { _, _ in withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
+            .onChange(of: client.outgoing.count) { _, _ in withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
         }
     }
 }
@@ -162,6 +168,48 @@ struct UserBubble: View {
                     Label("sent from phone", systemImage: "iphone")
                         .font(.caption2).foregroundStyle(Theme.secondary)
                 }
+            }
+        }
+    }
+}
+
+/// Your message, shown the moment you send it, with what happened to it underneath.
+struct OutgoingBubble: View {
+    let item: BridgeClient.Outgoing
+    @Environment(BridgeClient.self) private var client
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 50)
+            VStack(alignment: .trailing, spacing: 5) {
+                Text(item.text)
+                    .font(.subheadline)
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .glassPanel(cornerRadius: 22, tint: Theme.accent.opacity(item.status == .failed ? 0.15 : 0.35))
+                    .opacity(item.status == .sending ? 0.75 : 1)
+                status
+            }
+        }
+    }
+
+    @ViewBuilder private var status: some View {
+        switch item.status {
+        case .sending:
+            HStack(spacing: 5) { ProgressView().controlSize(.mini); Text("Sending…") }
+                .font(.caption2).foregroundStyle(Theme.secondary)
+        case .sent:
+            Label("Sent", systemImage: "checkmark").font(.caption2).foregroundStyle(Theme.secondary)
+        case .queued:
+            Label(item.note ?? "Queued", systemImage: "clock").font(.caption2).foregroundStyle(Theme.amber)
+                .multilineTextAlignment(.trailing)
+        case .failed:
+            VStack(alignment: .trailing, spacing: 4) {
+                if let n = item.note { Text(n).font(.caption2).foregroundStyle(Theme.red).multilineTextAlignment(.trailing) }
+                HStack(spacing: 14) {
+                    Button("Dismiss") { client.dismissOutgoing(item) }.foregroundStyle(Theme.secondary)
+                    Button { client.retry(item) } label: { Label("Retry", systemImage: "arrow.clockwise") }.foregroundStyle(Theme.accent)
+                }
+                .font(.caption.weight(.semibold))
             }
         }
     }
@@ -311,16 +359,6 @@ struct Composer: View {
                 .glassEffect(session.holdingForPhone ? .clear.tint(Theme.accent.opacity(0.25)).interactive() : .clear.interactive(),
                              in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 .disabled(session.status == .ended)
-            if focused.wrappedValue {
-                Button { focused.wrappedValue = false } label: {
-                    Image(systemName: "keyboard.chevron.compact.down")
-                        .font(.system(size: 16, weight: .semibold))
-                        .frame(width: 46, height: 46)
-                        .foregroundStyle(Theme.text)
-                        .glassEffect(.clear.interactive(), in: Circle())
-                }
-                .transition(.scale.combined(with: .opacity))
-            }
             Button(action: send) {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 17, weight: .bold))

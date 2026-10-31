@@ -38,6 +38,15 @@ enum SessionStatus: String, Decodable {
         }
     }
 
+    var shortLabel: String {
+        switch self {
+        case .needsPermission: "Approve"
+        case .needsAnswer: "Question"
+        case .waitingInput: "Waiting"
+        default: label
+        }
+    }
+
     var needsYou: Bool { self == .needsPermission || self == .needsAnswer || self == .waitingInput }
 }
 
