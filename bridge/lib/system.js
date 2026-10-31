@@ -322,6 +322,11 @@ async function raiseVSCodeWindow(n) {
 }
 
 const folderOf = t => (t.includes(' — ') ? t.split(' — ').pop().trim() : null);
+// A window with no folder open is titled with just the tab, and Claude in it runs from the home folder.
+const showsFolder = (t, cwd) => {
+  const folder = folderOf(t);
+  return folder ? folder === path.basename(cwd ?? '') : cwd === os.homedir();
+};
 
 export async function vscodeSubmit({ sessionId, cwd, text, title }) {
   const fail = (reason, msg) => Object.assign(new Error(msg ?? reason), { reason });
@@ -353,7 +358,7 @@ export async function vscodeSubmit({ sessionId, cwd, text, title }) {
     // The chat isn't the visible tab anywhere. The extension's link resumes a session only from the
     // folder open in the focused window, and opening a second window for that folder makes VS Code offer
     // to move the chat. So: use the window that already has the folder; open one only if VS Code has none.
-    const folderWin = titles.findIndex(t => folderOf(t) === path.basename(cwd ?? ''));
+    const folderWin = titles.findIndex(t => showsFolder(t, cwd));
     if (folderWin >= 0) {
       await raiseVSCodeWindow(folderWin + 1).catch(() => {});
     } else if (titles.length === 0 && !running && cwd && fs.existsSync(CODE_CLI)) {
@@ -429,7 +434,7 @@ export async function vscodeOpenSession({ sessionId, cwd }) {
   if (running) await run('/usr/bin/osascript', ['-e', 'tell application id "com.microsoft.VSCode" to activate'], { timeout: 8000 }).catch(() => {});
   await new Promise(r => setTimeout(r, 500));
   const titles = await vscodeWindowTitles().catch(() => []);
-  const win = titles.findIndex(t => folderOf(t) === path.basename(cwd));
+  const win = titles.findIndex(t => showsFolder(t, cwd));
   if (win >= 0) await raiseVSCodeWindow(win + 1).catch(() => {});
   else await run(CODE_CLI, [cwd], { timeout: 15000 }).catch(() => {});
   await new Promise(r => setTimeout(r, win >= 0 ? 700 : (running ? 2500 : 6000)));
