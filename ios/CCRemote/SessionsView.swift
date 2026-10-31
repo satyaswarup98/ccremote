@@ -50,14 +50,18 @@ struct SessionsView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
                 }
-                ToolbarItem(placement: .topBarTrailing) { MacStatusButton() }
+                // One item, so iOS keeps both icons visible instead of folding them into a "…" menu.
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showNotifications = true } label: {
-                        Image(systemName: client.hasUnreadNotifications ? "bell.badge" : "bell")
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(client.hasUnreadNotifications ? Theme.accent : Theme.text, Theme.text)
+                    HStack(spacing: 18) {
+                        MacStatusButton()
+                        Button { showNotifications = true } label: {
+                            Image(systemName: client.hasUnreadNotifications ? "bell.badge" : "bell")
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(client.hasUnreadNotifications ? Theme.accent : Theme.text, Theme.text)
+                        }
+                        .accessibilityLabel("Notification history")
                     }
-                    .accessibilityLabel("Notification history")
+                    .padding(.horizontal, 4)
                 }
             }
             .navigationDestination(for: String.self) { id in SessionDetailView(sessionId: id) }
