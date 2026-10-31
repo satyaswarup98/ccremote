@@ -3,24 +3,31 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash                 # full setup
 #   curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash -s -- bridge     # Mac bridge only
+#
+# Uses curl + tar only (no git), so it works anywhere this command itself could be downloaded.
 set -euo pipefail
-REPO="https://github.com/satyaswarup98/ccremote.git"
+ARCHIVE="https://codeload.github.com/satyaswarup98/ccremote/tar.gz/refs/heads/main"
 DIR="${CCREMOTE_DIR:-$HOME/ccremote}"
 
-command -v git >/dev/null 2>&1 && git --version >/dev/null 2>&1 || {
-  echo "git is needed. Installing Apple's Command Line Tools: click Install in the window that opens, then run this command again."
-  xcode-select --install 2>/dev/null || true
+if [ -e "$DIR" ] && [ ! -f "$DIR/setup.sh" ]; then
+  echo "${DIR} already exists and isn't a CC Remote download. Move it away (or set CCREMOTE_DIR=/other/path) and run again."
   exit 1
-}
-
-if [ -d "$DIR/.git" ]; then
-  echo "Updating ${DIR}…"
-  git -C "$DIR" pull --ff-only --quiet
-elif [ -e "$DIR" ]; then
-  echo "$DIR already exists and isn't a CC Remote download. Move it away (or set CCREMOTE_DIR=/other/path) and run again."
-  exit 1
-else
-  echo "Downloading CC Remote into ${DIR}…"
-  git clone --quiet --depth 1 "$REPO" "$DIR"
 fi
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+echo "Downloading CC Remote…"
+if ! curl -fsSL --retry 3 "$ARCHIVE" -o "$TMP/ccremote.tar.gz"; then
+  echo "Couldn't download from GitHub. Check the Mac's internet connection (or VPN/proxy) and run the command again."
+  exit 1
+fi
+mkdir -p "$TMP/src"
+tar -xzf "$TMP/ccremote.tar.gz" -C "$TMP/src" --strip-components 1
+[ -f "$TMP/src/setup.sh" ] || { echo "The download looks incomplete. Run the command again."; exit 1; }
+
+# Copy over any existing install; local state lives in ~/.ccremote, not here.
+mkdir -p "$DIR"
+cp -R "$TMP/src/." "$DIR/"
+chmod +x "$DIR/setup.sh" "$DIR/install.sh" "$DIR/bridge/ccr.js" "$DIR/bridge/bin/cc" "$DIR/bridge/bin/ccr-hook"
+echo "Installed into ${DIR}"
 exec "$DIR/setup.sh" "${1:-all}"
