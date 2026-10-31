@@ -336,6 +336,24 @@ const showsFolder = (t, cwd) => {
   return folder ? folder === path.basename(cwd ?? '') : cwd === os.homedir();
 };
 
+// VS Code's Window menu lists every window it has open, on any desktop and in full screen, while macOS
+// only reports windows on the current desktop. The window entries come after the last separator.
+async function vscodeMenuWindows() {
+  const { stdout } = await run('/usr/bin/osascript', ['-e',
+    'tell application "System Events" to tell process "Code" to get name of every menu item of menu "Window" of menu bar 1'], { timeout: 8000 });
+  const items = stdout.trim().split(', ');
+  const lastSep = items.lastIndexOf('missing value');
+  return items.slice(lastSep + 1).map(t => t.trim()).filter(t => t && t !== 'missing value');
+}
+
+// Chooses a window in VS Code's Window menu, which switches to its desktop and brings it forward.
+async function chooseVSCodeMenuWindow(name) {
+  const script = ['on run argv',
+    'tell application "System Events" to tell process "Code" to click menu item (item 1 of argv) of menu "Window" of menu bar 1',
+    'end run'].join('\n');
+  await run('/usr/bin/osascript', ['-e', script, name], { timeout: 8000 });
+}
+
 export async function vscodeSubmit({ sessionId, cwd, text, title }) {
   const fail = (reason, msg) => Object.assign(new Error(msg ?? reason), { reason });
   const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -357,7 +375,23 @@ export async function vscodeSubmit({ sessionId, cwd, text, title }) {
     if (/not allowed|assistive|-1719|-1728|1002/.test(String(e.stderr || e.message))) throw fail('accessibility', String(e.stderr || e.message));
     titles = [];   // VS Code not running
   }
-  const showing = titles.findIndex(t => titleMatches(t, title, cwd));
+  let showing = titles.findIndex(t => titleMatches(t, title, cwd));
+  if (showing < 0 && running) {
+    // Not on this desktop: find the chat's window in the Window menu and switch to it.
+    const menu = await vscodeMenuWindows().catch(() => []);
+    let target = menu.find(t => titleMatches(t, title, cwd));
+    if (!target && !titles.some(t => showsFolder(t, cwd))) {
+      // The chat may be a background tab: use its folder's window, but only if exactly one window has that folder.
+      const candidates = menu.filter(t => showsFolder(t, cwd));
+      if (candidates.length === 1) target = candidates[0];
+    }
+    if (target) {
+      await chooseVSCodeMenuWindow(target).catch(() => {});
+      await wait(1300);   // desktop switch animation
+      titles = await vscodeWindowTitles().catch(() => titles);
+      showing = titles.findIndex(t => titleMatches(t, title, cwd));
+    }
+  }
   if (showing >= 0) {
     // A window is already showing this chat: bring that one forward; no link, no new windows.
     await raiseVSCodeWindow(showing + 1).catch(e => { throw fail('accessibility', String(e.stderr || e.message)); });
