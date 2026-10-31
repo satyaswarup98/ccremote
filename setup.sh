@@ -185,5 +185,5 @@ case "${1:-all}" in
   app)    app ;;
   bridge) check_mac; install_tools; install_bridge ;;
   pair)   node "$HERE/bridge/ccr.js" pair ;;
-  *)      sed -n '2,9p' "$0" ;;
+  *)      sed -n '2,8p' "$0" ;;
 esac
