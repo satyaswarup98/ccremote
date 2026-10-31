@@ -4,12 +4,11 @@ struct SessionsView: View {
     @Environment(BridgeClient.self) private var client
     @State private var path: [String] = []
     @State private var showSettings = false
-    @State private var showNew = false
+    @State private var showNotifications = false
     @State private var showAddMac = false
     @State private var activeRequest: PendingRequest?
 
     private var active: [SessionInfo] { client.sessions.filter { $0.status != .ended } }
-    private var ended: [SessionInfo] { client.sessions.filter { $0.status == .ended } }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -28,12 +27,6 @@ struct SessionsView: View {
                     if active.isEmpty { emptyState }
                     ForEach(active) { s in
                         NavigationLink(value: s.id) { SessionRow(session: s) }.buttonStyle(.plain)
-                    }
-                    if !ended.isEmpty {
-                        section("RECENTLY ENDED")
-                        ForEach(ended) { s in
-                            NavigationLink(value: s.id) { SessionRow(session: s) }.buttonStyle(.plain).opacity(0.6)
-                        }
                     }
                 }
                 .padding(.horizontal, 18)
@@ -58,14 +51,18 @@ struct SessionsView: View {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showNew = true } label: { Image(systemName: "plus") }
-                        .disabled(client.connection != .connected)
+                    Button { showNotifications = true } label: {
+                        Image(systemName: client.hasUnreadNotifications ? "bell.badge" : "bell")
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(client.hasUnreadNotifications ? Theme.accent : Theme.text, Theme.text)
+                    }
+                    .accessibilityLabel("Notification history")
                 }
             }
             .navigationDestination(for: String.self) { id in SessionDetailView(sessionId: id) }
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
-        .sheet(isPresented: $showNew) { NewSessionSheet() }
+        .sheet(isPresented: $showNotifications) { NotificationsView() }
         .sheet(isPresented: $showAddMac) {
             PairingView(onPaired: { showAddMac = false })
                 .background(Theme.background)
@@ -220,71 +217,65 @@ struct SessionRow: View {
     }
 }
 
-struct NewSessionSheet: View {
+struct NotificationsView: View {
     @Environment(BridgeClient.self) private var client
     @Environment(\.dismiss) private var dismiss
-    @State private var folder = ""
-    @State private var message = ""
-    @FocusState private var messageFocused: Bool
-
-    private var canStart: Bool {
-        folder.hasPrefix("/") && !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    TextField("e.g. Fix the failing tests in the upload script", text: $message, axis: .vertical)
-                        .lineLimit(3...8)
-                        .focused($messageFocused)
-                } header: { Text("What should Claude do?") }
-
-                Section {
-                    ForEach(client.recentDirs, id: \.self) { dir in
-                        Button { folder = dir } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text((dir as NSString).lastPathComponent).font(.headline).foregroundStyle(Theme.text)
-                                    Text(dir).font(.caption.monospaced()).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.head)
-                                }
-                                Spacer()
-                                if folder == dir { Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.accent) }
-                            }
-                        }
+            Group {
+                if client.notifications.isEmpty {
+                    ContentUnavailableView("No notifications yet", systemImage: "bell",
+                                           description: Text("Approvals, questions and finished tasks from \(client.pairing?.macName ?? "your Mac") show up here."))
+                } else {
+                    List(client.notifications) { n in
+                        Button {
+                            client.openSessionId = n.sessionId
+                            dismiss()
+                        } label: { NotificationRow(item: n, unread: n.at > client.notificationsSeenAt) }
+                        .listRowBackground(Theme.card)
                     }
-                    TextField("Other folder: /Users/you/project", text: $folder)
-                        .font(.body.monospaced()).textInputAutocapitalization(.never).autocorrectionDisabled()
-                } header: { Text("Project folder") }
-
-                Section {
-                    Button {
-                        client.newSession(cwd: folder, text: message.trimmingCharacters(in: .whitespacesAndNewlines))
-                        dismiss()
-                    } label: {
-                        Label("Start session", systemImage: "play.fill")
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(!canStart).opacity(canStart ? 1 : 0.5)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                } footer: {
-                    Text("Runs on the Mac in that folder, also while it's locked, and you follow it here. It's a normal Claude Code session, so you can open it later from the Claude Code history in VS Code.")
+                    .scrollContentBackground(.hidden)
                 }
             }
-            .scrollContentBackground(.hidden)
-            .scrollDismissesKeyboard(.interactively)
-            .modifier(KeyboardDismissToolbar())
             .background(Theme.background)
-            .navigationTitle("New session")
+            .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
-        .onAppear {
-            client.loadRecentDirs()
-            messageFocused = true
+        .onAppear { client.loadNotifications() }
+        .onDisappear { client.markNotificationsSeen() }
+    }
+}
+
+struct NotificationRow: View {
+    let item: NotificationItem
+    let unread: Bool
+
+    private var icon: (String, Color) {
+        switch item.kind {
+        case "permission": ("lock.shield.fill", Theme.accent)
+        case "question": ("questionmark.bubble.fill", Theme.accent)
+        case "stop", "waiting": ("hourglass", Theme.amber)
+        case "done": ("checkmark.circle.fill", Theme.green)
+        default: ("bell.fill", Theme.secondary)
         }
-        .onChange(of: client.recentDirs) { _, dirs in if folder.isEmpty, let first = dirs.first { folder = first } }
-        .presentationDetents([.large])
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon.0).foregroundStyle(icon.1).font(.title3).frame(width: 26)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text(item.subtitle).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Text(item.date, format: .relative(presentation: .named)).font(.caption2).foregroundStyle(Theme.secondary)
+                    if unread { Circle().fill(Theme.accent).frame(width: 7, height: 7) }
+                }
+                Text(item.title).font(.caption).foregroundStyle(Theme.secondary).lineLimit(1)
+                Text(item.body).font(.footnote).foregroundStyle(Theme.text.opacity(0.85)).lineLimit(3)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }

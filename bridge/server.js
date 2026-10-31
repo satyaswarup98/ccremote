@@ -699,17 +699,54 @@ async function ntfyPush({ title, message, priority = 4, tags = ['bell'], click }
   return res.json();
 }
 
+// Every notification is kept (last 200) so the phone can show a history.
+const HISTORY_FILE = path.join(STATE_DIR, 'notifications.json');
+let history = (() => { try { return JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8')); } catch { return []; } })();
+let historyTimer = null;
+function remember(item) {
+  history.unshift(item);
+  if (history.length > 200) history.length = 200;
+  clearTimeout(historyTimer);
+  historyTimer = setTimeout(() => fs.writeFile(HISTORY_FILE, JSON.stringify(history), () => {}), 500);
+}
+
+// First run: fill the history from what ntfy still has cached (about the last 12 hours).
+async function backfillHistory() {
+  if (history.length || !config.ntfyTopic) return;
+  try {
+    const res = await fetch(`${config.ntfyServer}/${config.ntfyTopic}/json?poll=1&since=12h`, { signal: AbortSignal.timeout(10000) });
+    const lines = (await res.text()).split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(m => m.event === 'message');
+    const kinds = Object.fromEntries(Object.entries(NOTICE).map(([k, v]) => [v.subtitle, k]));
+    for (const m of lines) {
+      const [subtitle, ...rest] = String(m.title ?? '').split(' — ');
+      const sessionId = /ccremote:\/\/session\/([^?]+)/.exec(m.click ?? '')?.[1];
+      if (!sessionId) continue;
+      history.unshift({ id: m.id, at: m.time * 1000, kind: kinds[subtitle] ?? 'notice', sessionId, title: rest.join(' — '), subtitle, body: m.message ?? '' });
+    }
+    history.sort((a, b) => b.at - a.at);
+    if (history.length) { fs.writeFile(HISTORY_FILE, JSON.stringify(history), () => {}); log(`notification history: ${history.length} from ntfy`); }
+  } catch (e) {
+    log('notification history backfill failed:', e.message);
+  }
+}
+setTimeout(backfillHistory, 3000);
+
 async function notifyPhone(info) {
   // Only phones paired with this Mac get anything; nothing is sent before pairing.
   if (!devices.length) return;
   const { title, subtitle, body } = describe(info);
+  const item = { id: crypto.randomUUID(), at: Date.now(), kind: info.kind, sessionId: info.sessionId, title, subtitle, body };
+  remember(item);
 
   // App open: it shows a native banner (with Allow/Deny for approvals) from this event.
   const event = JSON.stringify({
     t: 'event', kind: info.kind, sessionId: info.sessionId, requestId: info.id ?? null,
-    title, subtitle, body, answerable: !!info.answerable,
+    title, subtitle, body, answerable: !!info.answerable, item,
   });
   for (const [ws, c] of clients) if (c.foreground && ws.readyState === 1) ws.send(event);
+  // Phones in the background still get it into their history when they're connected.
+  const quiet = JSON.stringify({ t: 'notification', item });
+  for (const [ws, c] of clients) if (!c.foreground && ws.readyState === 1) ws.send(quiet);
   if (phoneInForeground() || !config.ntfyTopic) return;
 
   // App closed: push through ntfy. Turn-finished pings are skipped while you're typing on the Mac.
@@ -875,6 +912,9 @@ async function onPhoneMessage(ws, c, m) {
         broadcastState();
       }
       return;
+
+    case 'notifications':
+      return ws.send(JSON.stringify({ t: 'notifications', items: history.slice(0, 200) }));
 
     case 'recentDirs':
       return ws.send(JSON.stringify({ t: 'recentDirs', dirs: recentDirs() }));

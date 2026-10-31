@@ -150,3 +150,15 @@ struct Pairing: Codable, Equatable, Identifiable {
         return stride(from: 0, to: 12, by: 4).map { String(f[$0..<$0 + 4]) }.joined(separator: " ")
     }
 }
+
+struct NotificationItem: Decodable, Identifiable, Hashable {
+    let id: String
+    let at: Double
+    let kind: String          // permission | question | stop | done | waiting | notice
+    let sessionId: String
+    let title: String
+    let subtitle: String
+    let body: String
+
+    var date: Date { Date(timeIntervalSince1970: at / 1000) }
+}

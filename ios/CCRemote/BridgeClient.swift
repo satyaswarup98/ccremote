@@ -63,6 +63,9 @@ final class BridgeClient {
     private(set) var items: [TranscriptItem] = []
     private(set) var screen: String = ""
     private(set) var recentDirs: [String] = []
+    private(set) var notifications: [NotificationItem] = []
+    private(set) var notificationsSeenAt: Double = 0
+    var hasUnreadNotifications: Bool { (notifications.first?.at ?? 0) > notificationsSeenAt }
     var toast: Toast?
     // Set by notification taps / deep links; the session list navigates to it.
     var openSessionId: String?
@@ -134,6 +137,7 @@ final class BridgeClient {
         screen = ""
         subscribed = nil
         seenPending = []
+        notifications = []
         connect()
     }
 
@@ -187,6 +191,7 @@ final class BridgeClient {
         task.resume()
         receive(task)
         send(["t": "fg", "value": true])
+        loadNotifications()
         if let subscribed { send(["t": "subscribe", "sessionId": subscribed]) }
     }
 
@@ -293,6 +298,7 @@ final class BridgeClient {
             toast = Toast(text: m.text, isError: m.level == "error")
         case "event":
             guard let m = try? dec.decode(EventMsg.self, from: data) else { return }
+            if let item = m.item { addNotification(item) }
             // Don't banner the session you're already looking at, except for things that need you.
             let needsYou = m.kind == "permission" || m.kind == "question" || m.kind == "stop"
             if m.sessionId != subscribed || needsYou {
@@ -302,6 +308,12 @@ final class BridgeClient {
         case "opened":
             guard let m = try? dec.decode(OpenedMsg.self, from: data) else { return }
             openSessionId = m.sessionId
+        case "notifications":
+            guard let m = try? dec.decode(NotificationsMsg.self, from: data) else { return }
+            notifications = m.items
+        case "notification":
+            guard let m = try? dec.decode(NotificationMsg.self, from: data) else { return }
+            addNotification(m.item)
         case "recentDirs":
             guard let m = try? dec.decode(DirsMsg.self, from: data) else { return }
             recentDirs = m.dirs
@@ -317,6 +329,27 @@ final class BridgeClient {
     private struct EventMsg: Decodable {
         let kind: String; let sessionId: String; let requestId: String?
         let title: String; let subtitle: String; let body: String; let answerable: Bool
+        let item: NotificationItem?
+    }
+    private struct NotificationsMsg: Decodable { let items: [NotificationItem] }
+    private struct NotificationMsg: Decodable { let item: NotificationItem }
+
+    private func addNotification(_ item: NotificationItem) {
+        guard !notifications.contains(where: { $0.id == item.id }) else { return }
+        notifications.insert(item, at: 0)
+        if notifications.count > 200 { notifications.removeLast(notifications.count - 200) }
+    }
+
+    private var seenKey: String { "notificationsSeenAt-\(pairing?.id ?? "")" }
+
+    func loadNotifications() {
+        notificationsSeenAt = UserDefaults.standard.double(forKey: seenKey)
+        send(["t": "notifications"])
+    }
+
+    func markNotificationsSeen() {
+        notificationsSeenAt = notifications.first?.at ?? notificationsSeenAt
+        UserDefaults.standard.set(notificationsSeenAt, forKey: seenKey)
     }
     private struct OpenedMsg: Decodable { let sessionId: String }
 
