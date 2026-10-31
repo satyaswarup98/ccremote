@@ -11,8 +11,16 @@ struct SessionDetailView: View {
 
     private func deliver(_ text: String, mode: BridgeClient.SendMode) {
         client.sendText(text, to: sessionId, mode: mode)
-        draft = ""
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        // Dictation can write its text back into the field after we clear it, so end editing first
+        // (which stops dictation), clear, and clear again once the keyboard has settled.
+        composerFocused = false
+        hideKeyboard()
+        draft = ""
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            if draft == text || text.hasPrefix(draft.trimmingCharacters(in: .whitespacesAndNewlines)) { draft = "" }
+        }
     }
 
     enum Tab { case chat, terminal }
