@@ -224,6 +224,39 @@ function scanRegistry() {
 }
 setInterval(scanRegistry, 4000);
 
+// A session started from the phone can stop at Claude Code's "do you trust this folder?" question
+// before any hook runs. Spot it on screen and turn it into a normal approval on the phone.
+const TRUST_RE = /Is this a project you created or one you trust\?|Do you trust the files in this folder\?/;
+setInterval(() => {
+  for (const s of [...sessions.values()]) {
+    if (!s.placeholder || s.trustAsked) continue;
+    tmux.capture(s.tmuxPane).then(screen => {
+      if (s.trustAsked || !TRUST_RE.test(screen.replace(/\x1b\[[0-9;]*m/g, ''))) return;
+      s.trustAsked = true;
+      s.activity = 'Waiting: trust this folder?';
+      holdRequest({
+        kind: 'permission', sessionId: s.id, project: s.project, toolName: 'Folder trust',
+        summary: s.cwd,
+        detail: { type: 'command', text: s.cwd, description: 'Claude Code asks whether you trust this folder before it starts. Allow answers "Yes, I trust this folder".' },
+        suggestions: [], answerable: true,
+      }, 30 * 60e3).then(async decision => {
+        if (!sessions.has(s.id)) return;
+        if (decision?.behavior === 'allow') {
+          await tmux.sendKeys(s.tmuxPane, ['down']);
+          await new Promise(r => setTimeout(r, 200));
+          await tmux.sendKeys(s.tmuxPane, ['enter']);
+          s.activity = 'Starting Claude…';
+          log(`phone trusted folder ${s.cwd}`);
+        } else if (decision) {
+          await tmux.sendKeys(s.tmuxPane, ['esc']);
+          log(`phone declined folder trust for ${s.cwd}`);
+        }
+        broadcastState();
+      });
+    }).catch(() => {});
+  }
+}, 1000);
+
 function sessionView(s) {
   const reqs = [...pending.values()].map(p => p.info).filter(i => i.sessionId === s.id);
   let status = s.status;
