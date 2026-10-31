@@ -56,7 +56,7 @@ struct RootView: View {
     @Environment(BridgeClient.self) private var client
     var body: some View {
         ZStack(alignment: .top) {
-            Theme.background.ignoresSafeArea()
+            AppBackground()
             #if DEBUG
             if ProcessInfo.processInfo.environment["CCR_DEMO"] == "questions" {
                 QuestionDemoView()
@@ -93,7 +93,7 @@ struct ToastOverlay: View {
                 Text(t.text).font(.subheadline).fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .padding(.horizontal, 20)
             .padding(.top, 6)
             .transition(.move(edge: .top).combined(with: .opacity))

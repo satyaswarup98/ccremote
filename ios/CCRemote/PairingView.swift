@@ -76,9 +76,7 @@ struct PairingView: View {
                             .font(.title3).foregroundStyle(selected == mac && !showManual ? Theme.accent : Theme.secondary)
                     }
                     .padding(16)
-                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(selected == mac && !showManual ? Theme.accent : Theme.stroke, lineWidth: 1.5))
+                    .glassPanel(cornerRadius: 18, tint: selected == mac && !showManual ? Theme.accent.opacity(0.3) : nil, interactive: true)
                 }
                 .buttonStyle(.plain)
             }
@@ -90,8 +88,7 @@ struct PairingView: View {
                     .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     .font(.body.monospaced())
                     .padding(14)
-                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.accent, lineWidth: 1.5))
+                    .glassPanel(cornerRadius: 16, tint: Theme.accent.opacity(0.2))
             }
             Button(showManual ? "Use a discovered Mac" : "Enter address manually") {
                 showManual.toggle()
@@ -151,9 +148,7 @@ struct PairingView: View {
             .font(.system(size: 28, weight: .semibold, design: .rounded))
             .frame(maxWidth: .infinity)
             .frame(height: 58)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(current ? Theme.accent : (error != nil ? Theme.red.opacity(0.6) : Theme.stroke), lineWidth: current ? 2 : 1))
+            .glassPanel(cornerRadius: 14, tint: current ? Theme.accent.opacity(0.35) : (error != nil ? Theme.red.opacity(0.3) : nil))
     }
 
     static let installCommand = "curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash"
@@ -170,8 +165,7 @@ struct PairingView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Theme.stroke))
+        .glassPanel(cornerRadius: 22)
     }
 
     private func submit() {
@@ -233,8 +227,8 @@ struct CommandBox: View {
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(copied ? Theme.green : Theme.text)
-                    .frame(width: 32, height: 32)
-                    .background(Theme.cardRaised, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .frame(width: 34, height: 34)
+                    .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .contentTransition(.symbolEffect(.replace))
             }
             .accessibilityLabel(copied ? "Copied" : "Copy command")

@@ -26,15 +26,42 @@ enum Theme {
     }
 }
 
+// MARK: Liquid Glass (iOS 26+)
+
+extension View {
+    /// A frosted glass panel; `tint` colours it slightly (e.g. orange for things that need you).
+    func glassPanel(cornerRadius: CGFloat = 18, tint: Color? = nil, interactive: Bool = false) -> some View {
+        var glass: Glass = .regular
+        if let tint { glass = glass.tint(tint) }
+        if interactive { glass = glass.interactive() }
+        return glassEffect(glass, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+
+    /// The app's background: dark, with soft colour glows for the glass to refract.
+    func appBackground() -> some View { background(AppBackground()) }
+}
+
+struct AppBackground: View {
+    var body: some View {
+        ZStack {
+            Theme.background
+            Circle().fill(Theme.accent.opacity(0.32)).frame(width: 420).blur(radius: 130).offset(x: -150, y: -320)
+            Circle().fill(Theme.blue.opacity(0.18)).frame(width: 380).blur(radius: 140).offset(x: 170, y: 120)
+            Circle().fill(Theme.accent.opacity(0.14)).frame(width: 360).blur(radius: 150).offset(x: -60, y: 520)
+        }
+        .ignoresSafeArea()
+    }
+}
+
 struct Card<Content: View>: View {
     var padding: CGFloat = 16
+    var tint: Color? = nil
     @ViewBuilder var content: Content
     var body: some View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.stroke))
+            .glassPanel(tint: tint)
     }
 }
 
@@ -48,7 +75,7 @@ struct StatusPill: View {
         }
         .foregroundStyle(Theme.color(for: status))
         .padding(.horizontal, 10).padding(.vertical, 5)
-        .background(Theme.color(for: status).opacity(0.14), in: Capsule())
+        .glassEffect(.regular.tint(Theme.color(for: status).opacity(0.25)), in: Capsule())
     }
 }
 
@@ -63,6 +90,7 @@ struct Pulse: ViewModifier {
     }
 }
 
+/// Main action: tinted, interactive glass.
 struct PrimaryButtonStyle: ButtonStyle {
     var color: Color = Theme.accent
     func makeBody(configuration: Configuration) -> some View {
@@ -70,11 +98,14 @@ struct PrimaryButtonStyle: ButtonStyle {
             .font(.body.weight(.semibold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(color.opacity(configuration.isPressed ? 0.75 : 1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .foregroundStyle(.white)
+            .glassEffect(.regular.tint(color.opacity(configuration.isPressed ? 0.6 : 0.85)).interactive(),
+                         in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
     }
 }
 
+/// Secondary action: clear glass.
 struct SecondaryButtonStyle: ButtonStyle {
     var color: Color = Theme.text
     func makeBody(configuration: Configuration) -> some View {
@@ -82,8 +113,9 @@ struct SecondaryButtonStyle: ButtonStyle {
             .font(.body.weight(.semibold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(Theme.cardRaised.opacity(configuration.isPressed ? 0.6 : 1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .foregroundStyle(color)
+            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
     }
 }
 

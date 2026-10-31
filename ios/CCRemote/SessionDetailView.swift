@@ -60,7 +60,7 @@ struct SessionDetailView: View {
                                        description: Text("It may have ended, or the bridge restarted."))
             }
         }
-        .background(Theme.background)
+        .appBackground()
         .navigationTitle(session?.project ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -157,7 +157,7 @@ struct UserBubble: View {
                     .font(.subheadline)
                     .textSelection(.enabled)
                     .padding(.horizontal, 14).padding(.vertical, 10)
-                    .background(Theme.accent.opacity(0.22), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .glassPanel(tint: Theme.accent.opacity(0.35))
                 if fromPhone {
                     Label("sent from phone", systemImage: "iphone")
                         .font(.caption2).foregroundStyle(Theme.secondary)
@@ -217,7 +217,7 @@ struct ToolRow: View {
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 8)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .glassPanel(cornerRadius: 12)
     }
 }
 
@@ -260,6 +260,7 @@ struct KeyBar: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
+            GlassEffectContainer(spacing: 6) {
             HStack(spacing: 6) {
                 ForEach(keys, id: \.key) { k in
                     Button {
@@ -268,7 +269,7 @@ struct KeyBar: View {
                     } label: {
                         Text(k.label).font(.system(size: 14, weight: .semibold, design: .monospaced))
                             .frame(minWidth: 38, minHeight: 34)
-                            .background(Theme.cardRaised, in: RoundedRectangle(cornerRadius: 8))
+                            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -277,8 +278,8 @@ struct KeyBar: View {
                 Button { fontSize = min(16, fontSize + 1) } label: { Image(systemName: "textformat.size.larger").frame(width: 34, height: 34) }
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
+            }
         }
-        .background(Theme.card)
     }
 }
 
@@ -301,36 +302,37 @@ struct Composer: View {
     }
 
     var body: some View {
+        GlassEffectContainer(spacing: 10) {
         HStack(alignment: .bottom, spacing: 10) {
             TextField(hint, text: $draft, axis: .vertical)
                 .lineLimit(1...6)
                 .focused(focused)
                 .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(session.holdingForPhone ? Theme.accent.opacity(0.7) : Theme.stroke))
+                .glassEffect(session.holdingForPhone ? .regular.tint(Theme.accent.opacity(0.25)).interactive() : .regular.interactive(),
+                             in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .disabled(session.status == .ended)
             if focused.wrappedValue {
                 Button { focused.wrappedValue = false } label: {
                     Image(systemName: "keyboard.chevron.compact.down")
                         .font(.system(size: 16, weight: .semibold))
-                        .frame(width: 40, height: 40)
-                        .background(Theme.cardRaised, in: Circle())
+                        .frame(width: 42, height: 42)
                         .foregroundStyle(Theme.text)
+                        .glassEffect(.regular.interactive(), in: Circle())
                 }
                 .transition(.scale.combined(with: .opacity))
             }
             Button(action: send) {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 17, weight: .bold))
-                    .frame(width: 40, height: 40)
-                    .background(draft.isEmpty ? Theme.cardRaised : Theme.accent, in: Circle())
+                    .frame(width: 42, height: 42)
                     .foregroundStyle(.white)
+                    .glassEffect(draft.isEmpty ? .regular.interactive() : .regular.tint(Theme.accent.opacity(0.9)).interactive(), in: Circle())
             }
             .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || session.status == .ended)
         }
+        }
         .padding(.horizontal, 12).padding(.vertical, 10)
         .animation(.snappy, value: focused.wrappedValue)
-        .background(Theme.background.shadow(.drop(color: .black.opacity(0.4), radius: 8, y: -2)))
     }
 }
 

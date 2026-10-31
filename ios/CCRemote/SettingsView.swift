@@ -104,7 +104,7 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.interactively)
             .modifier(KeyboardDismissToolbar())
-            .background(Theme.background)
+            .appBackground()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -119,7 +119,7 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showAddMac) {
                 PairingView(onPaired: { showAddMac = false; dismiss() })
-                    .background(Theme.background)
+                    .appBackground()
                     .presentationDragIndicator(.visible)
             }
             .onChange(of: client.pairing?.id) { _, _ in if let p = client.pairing { host = "\(p.host):\(p.port)" } }

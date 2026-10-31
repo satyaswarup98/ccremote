@@ -17,7 +17,7 @@ struct RequestSheet: View {
                     PermissionForm(request: request) { dismiss() }
                 }
             }
-            .background(Theme.background)
+            .appBackground()
             .scrollDismissesKeyboard(.interactively)
             .modifier(KeyboardDismissToolbar())
             .navigationTitle(request.project)
@@ -58,7 +58,7 @@ struct PermissionForm: View {
                         if showDeny {
                             TextField("Tell Claude what to do instead (optional)", text: $denyReason, axis: .vertical)
                                 .lineLimit(1...4)
-                                .padding(12).background(Theme.card, in: RoundedRectangle(cornerRadius: 12))
+                                .padding(12).glassPanel(cornerRadius: 14)
                             HStack(spacing: 10) {
                                 Button("Deny") { act { client.deny(request, message: denyReason) } }
                                     .buttonStyle(SecondaryButtonStyle(color: Theme.red))
@@ -234,9 +234,8 @@ struct QuestionForm: View {
             }
             .font(.subheadline.weight(.semibold))
             .padding(.horizontal, 14).padding(.vertical, 8)
-            .background(selected ? Theme.accent : Theme.card, in: Capsule())
-            .overlay(Capsule().strokeBorder(selected ? Color.clear : Theme.stroke))
             .foregroundStyle(selected ? .white : Theme.text)
+            .glassEffect(selected ? .regular.tint(Theme.accent.opacity(0.85)).interactive() : .regular.interactive(), in: Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -256,8 +255,7 @@ struct QuestionForm: View {
                 .lineLimit(1...4)
                 .focused($otherFocused)
                 .padding(12)
-                .background(Theme.card, in: RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder((other[q.question] ?? "").isEmpty ? Theme.stroke : Theme.accent))
+                .glassPanel(cornerRadius: 14, tint: (other[q.question] ?? "").isEmpty ? nil : Theme.accent.opacity(0.25))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -282,7 +280,7 @@ struct QuestionForm: View {
                         Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.secondary)
                     }
                     .padding(14)
-                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .glassPanel(cornerRadius: 16, interactive: true)
                 }
                 .buttonStyle(.plain)
             }
@@ -317,7 +315,6 @@ struct QuestionForm: View {
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
-        .background(Theme.background)
     }
 
     private func optionButton(_ q: Question, _ o: QuestionOption) -> some View {
@@ -351,8 +348,7 @@ struct QuestionForm: View {
                 Spacer()
             }
             .padding(14)
-            .background(on ? Theme.accent.opacity(0.14) : Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(on ? Theme.accent : Theme.stroke))
+            .glassPanel(cornerRadius: 16, tint: on ? Theme.accent.opacity(0.35) : nil, interactive: true)
         }
         .buttonStyle(.plain)
     }
@@ -402,7 +398,7 @@ struct QuestionDemoView: View {
     var body: some View {
         NavigationStack {
             QuestionForm(request: QuestionDemo.request, done: {}, startPage: QuestionDemo.page, presetPicks: QuestionDemo.picks)
-                .background(Theme.background)
+                .appBackground()
                 .navigationTitle("insta_bot")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Later") {} } }

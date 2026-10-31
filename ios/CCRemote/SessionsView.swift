@@ -33,7 +33,7 @@ struct SessionsView: View {
                 .padding(.bottom, 30)
                 .animation(.snappy, value: client.sessions.map(\.status))
             }
-            .background(Theme.background)
+            .appBackground()
             .refreshable { client.connect() }
             .navigationTitle(client.pairing?.macName ?? "CC Remote")
             .toolbarTitleMenu {
@@ -65,7 +65,7 @@ struct SessionsView: View {
         .sheet(isPresented: $showNotifications) { NotificationsView() }
         .sheet(isPresented: $showAddMac) {
             PairingView(onPaired: { showAddMac = false })
-                .background(Theme.background)
+                .appBackground()
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $activeRequest) { req in RequestSheet(request: req) }
@@ -115,7 +115,7 @@ struct ConnectionBanner: View {
         }
         .foregroundStyle(color)
         .padding(14)
-        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .glassPanel(cornerRadius: 14, tint: color.opacity(0.2))
     }
 }
 
@@ -137,7 +137,7 @@ struct AwayCard: View {
                 .foregroundStyle(color)
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .glassPanel(cornerRadius: 14, tint: color.opacity(0.18))
         }
     }
 }
@@ -159,8 +159,7 @@ struct PendingRow: View {
             Image(systemName: "chevron.right").foregroundStyle(Theme.secondary)
         }
         .padding(16)
-        .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.accent.opacity(0.5)))
+        .glassPanel(tint: Theme.accent.opacity(0.3), interactive: true)
     }
 }
 
@@ -198,7 +197,7 @@ struct SessionRow: View {
         Text(session.entrypoint == "phone" ? "PHONE" : session.hasMirror ? "TERMINAL" : (session.isVSCode ? "VS CODE" : "CLI"))
             .font(.system(size: 9, weight: .bold))
             .padding(.horizontal, 6).padding(.vertical, 3)
-            .background(Theme.cardRaised, in: Capsule())
+            .glassEffect(.regular, in: Capsule())
             .foregroundStyle(Theme.secondary)
     }
 }
@@ -219,12 +218,11 @@ struct NotificationsView: View {
                             client.openSessionId = n.sessionId
                             dismiss()
                         } label: { NotificationRow(item: n, unread: n.at > client.notificationsSeenAt) }
-                        .listRowBackground(Theme.card)
                     }
                     .scrollContentBackground(.hidden)
                 }
             }
-            .background(Theme.background)
+            .appBackground()
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
