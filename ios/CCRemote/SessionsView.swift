@@ -175,7 +175,6 @@ struct SessionRow: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(session.project).font(.headline)
-                    tag
                     Spacer()
                     StatusPill(status: session.status)
                 }
@@ -198,13 +197,6 @@ struct SessionRow: View {
         }
     }
 
-    private var tag: some View {
-        Text(session.entrypoint == "phone" ? "PHONE" : session.hasMirror ? "TERMINAL" : (session.isVSCode ? "VS CODE" : "CLI"))
-            .font(.system(size: 9, weight: .bold))
-            .padding(.horizontal, 6).padding(.vertical, 3)
-            .glassEffect(.clear, in: Capsule())
-            .foregroundStyle(Theme.secondary)
-    }
 }
 
 struct NotificationsView: View {
