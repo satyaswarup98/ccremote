@@ -281,7 +281,7 @@ async function pair() {
 
 async function status() {
   const s = await api('GET', '/ctl/status');
-  console.log(`${c.o('CC Remote')} on ${c.b(s.mac)}  away: ${s.away ? c.o('yes') : 'no'} (mode ${s.awayMode}, Mac idle ${s.idleSec}s)`);
+  console.log(`${c.o('CC Remote')} on ${c.b(s.mac)}  ${s.locked ? c.o('Mac locked') : s.away ? c.o('Mac idle') : 'at the Mac'} (idle ${s.idleSec}s)`);
   console.log(`phones connected: ${s.clients}   paired: ${s.devices.map(d => d.name).join(', ') || 'none'}`);
   console.log(`addresses: ${s.ips.map(i => `${i.address}:${s.port}`).join('  ')}`);
   console.log(`notifications: ntfy topic ${c.b(s.ntfyTopic)}`);
@@ -320,12 +320,9 @@ switch (cmd) {
   }
   case 'pair': await pair(); break;
   case 'status': case undefined: await status(); break;
-  case 'away': {
-    const mode = args[0] ?? 'on';
-    const r = await api('POST', '/ctl/away', { mode });
-    console.log(r.error ?? `away mode: ${r.awayMode} (currently ${r.away ? 'away' : 'at Mac'})`);
+  case 'away':
+    console.log('Away is automatic now: when the Mac is locked or untouched for 2 minutes, finished turns wait for your phone.');
     break;
-  }
   case 'permissions': await setupPermissions(); break;
   case 'test-notify': {
     const r = await api('POST', '/ctl/test-notify');
@@ -343,7 +340,6 @@ switch (cmd) {
   ccr install          install hooks + background bridge + cc/ccr commands
   ccr pair             show a 6-digit code to pair the iPhone
   ccr status           sessions, away state, connected phones
-  ccr away on|off|auto hold prompts for the phone (auto = when Mac idle ${'>'}2 min)
   ccr devices          list paired phones;  ccr unpair <id|all>
   ccr permissions      check/ask for the macOS permissions VS Code typing needs
   ccr test-notify      send a test notification to the phone (via ntfy)

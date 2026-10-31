@@ -3,6 +3,7 @@ import Foundation
 struct BridgeState: Decodable {
     let mac: String
     let away: Bool
+    let locked: Bool?
     let awayMode: String
     let idleThresholdSec: Int
     let ntfyTopic: String?

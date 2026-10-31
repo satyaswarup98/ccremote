@@ -43,14 +43,14 @@ The script asks for your Apple ID team (from Xcode → Settings → Accounts) an
 | --- | --- |
 | `ccr pair` | Show a 6-digit pairing code (5 min, single use) |
 | `ccr status` | Sessions, away state, connected phones |
-| `ccr away on\|off\|auto` | Who answers prompts. `auto` = phone after 2 min of Mac inactivity |
 | `cc [args]` | Start `claude` inside tmux (adds the live Terminal tab on the phone) |
 | `ccr devices` / `ccr unpair all` | List / revoke paired phones |
 | `ccr logs`, `ccr restart`, `ccr uninstall` | Maintenance |
 
 ## How control works
 
-- **Approvals**: `PermissionRequest` hook. When away, the bridge holds it until the phone answers (≤58 min); when you touch the Mac again it hands the prompt back to the Mac.
+- **Away is automatic** (no switch): the Mac counts as away when it's locked or untouched for 2 minutes. Then a finished turn stays open for your phone reply (up to 1 h, or 12 h while locked); touching the Mac hands it back.
+- **Approvals**: `PermissionRequest` hook. Every prompt shows on the Mac and the phone at once; whichever answers first wins.
 - **Questions** (`AskUserQuestion`): `PreToolUse` hook returns the phone's answers via `updatedInput`.
 - **Messages**: a turn that's waiting for a reply (Away mode) gets it through the `Stop` hook. Terminal sessions (tmux or screen) are typed into. An idle VS Code session is typed into directly: the bridge brings its tab forward with the extension's documented `vscode://anthropic.claude-code/open?session=…` link, checks the VS Code window title shows that chat and folder, pastes, presses Return, and confirms through that session's `UserPromptSubmit` hook. It waits for a 1.5 s pause in keyboard/mouse input (up to 20 s; `vscodeQuietSec`, `vscodeWaitSec` in `~/.ccremote/config.json`), types in about a second, and puts you back in the app you were using. It never types while the Mac is locked; then the message is queued for the next stop. Needs the Accessibility permission for `node` on the Mac (macOS asks once).
 - **Session list**: built from hook events plus Claude Code's own registry (`~/.claude/sessions/<pid>.json`), so idle sessions appear too and disappear when their process exits.

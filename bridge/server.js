@@ -74,12 +74,11 @@ let idleSec = 0;
 let away = false;
 let locked = false;   // Mac screen locked
 
+// Away is decided automatically: the Mac is locked, or nobody has touched it for idleThresholdSec.
+// (There used to be a manual Phone/Mac switch; it's gone, and older settings are ignored.)
 function computeAway() {
   // Holding a prompt only makes sense once there is a phone to answer it.
   if (!devices.length) return false;
-  if (config.awayMode === 'on') return true;
-  if (config.awayMode === 'off') return false;
-  // A locked Mac means nobody is at it.
   return locked || idleSec >= config.idleThresholdSec;
 }
 
@@ -93,7 +92,7 @@ async function tickIdle() {
   }
   const was = away;
   away = computeAway();
-  if (was && !away && config.awayMode === 'auto' && idleSec < 5) {
+  if (was && !away && idleSec < 5) {
     // Back at the keyboard: hand back holds the Mac can't show on its own (permission dialogs already show there).
     let n = 0;
     for (const p of [...pending.values()]) if (p.info.kind !== 'permission') { p.resolve(null); n++; }
@@ -905,7 +904,7 @@ async function onPhoneMessage(ws, c, m) {
     }
 
     case 'setAway':
-      if (['auto', 'on', 'off'].includes(m.mode)) {
+      if (false) {
         config = { ...loadConfig(), awayMode: m.mode };
         saveConfig(config);
         await tickIdle();

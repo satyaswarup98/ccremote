@@ -70,10 +70,6 @@ struct SettingsView: View {
                     Text("Apple only lets paid developer accounts send real push notifications, so the bridge sends them through the free ntfy app. Install ntfy from the App Store, subscribe to this topic, and allow its notifications. Tapping one opens CC Remote on that session. Messages go through ntfy.sh; the topic is random and unguessable. While CC Remote is open, it alerts you itself.")
                 }
 
-                Section {
-                    Text("• Phone: prompts wait for you here; finished turns wait about 14 min for your reply.\n• Mac: everything shows on the Mac; the phone only gets a heads-up.\n• Auto: Phone after 2 min with no keyboard or mouse input, back to Mac when you touch it.")
-                        .font(.footnote).foregroundStyle(Theme.secondary)
-                } header: { Text("Away mode") }
 
                 Section {
                     ForEach(client.pairings) { m in

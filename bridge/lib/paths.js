@@ -60,6 +60,8 @@ export function ensureStateDir() {
   const cfg = loadConfig();
   // Older installs saved the previous 14-minute default; move them to the new one (custom values stay).
   if (cfg.stopHoldSec === 840) { cfg.stopHoldSec = DEFAULT_CONFIG.stopHoldSec; saveConfig(cfg); }
+  // The manual Phone/Mac switch is gone; away is always automatic.
+  if (cfg.awayMode && cfg.awayMode !== 'auto') { cfg.awayMode = 'auto'; saveConfig(cfg); }
   if (!cfg.ntfyTopic) {
     cfg.ntfyTopic = 'ccr-' + crypto.randomBytes(12).toString('hex');
     saveConfig(cfg);

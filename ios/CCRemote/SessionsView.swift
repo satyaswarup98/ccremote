@@ -119,39 +119,25 @@ struct ConnectionBanner: View {
     }
 }
 
+// One line about the Mac. Away is automatic: when the Mac is locked or untouched for a couple of
+// minutes, finished turns stay open for your phone reply; while you use the Mac they end as usual.
 struct AwayCard: View {
     @Environment(BridgeClient.self) private var client
 
     var body: some View {
+        let locked = client.state?.locked ?? false
         let away = client.state?.away ?? false
-        let mode = client.state?.awayMode ?? "auto"
-        Card(padding: 14) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    Image(systemName: away ? "iphone.radiowaves.left.and.right" : "laptopcomputer")
-                        .font(.title3)
-                        .foregroundStyle(away ? Theme.accent : Theme.secondary)
-                        .frame(width: 28)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(away ? "Phone is in control" : "You're at the Mac")
-                            .font(.headline)
-                        Text(away
-                             ? "Prompts and finished turns wait here for you."
-                             : "Prompts appear on the Mac; you get a heads-up here.")
-                            .font(.caption).foregroundStyle(Theme.secondary)
-                    }
-                }
-                Picker("Away mode", selection: Binding(get: { mode }, set: { client.setAway($0) })) {
-                    Text("Auto").tag("auto")
-                    Text("Phone").tag("on")
-                    Text("Mac").tag("off")
-                }
-                .pickerStyle(.segmented)
-                if mode == "auto" {
-                    Text("Auto switches to the phone after \(String((client.state?.idleThresholdSec ?? 120) / 60)) min without keyboard or mouse on the Mac, and back when you touch it.")
-                        .font(.caption2).foregroundStyle(Theme.secondary)
-                }
-            }
+        let (icon, color, text): (String, Color, String) =
+            locked ? ("lock.fill", Theme.accent, "Mac locked: replies to finished turns go straight in")
+            : away ? ("iphone", Theme.accent, "Mac idle: replies to finished turns go straight in")
+            : ("laptopcomputer", Theme.secondary, "You're at the Mac")
+        if client.connection == .connected {
+            Label(text, systemImage: icon)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(color)
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 }

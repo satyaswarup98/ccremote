@@ -73,7 +73,7 @@ struct PermissionForm: View {
                     Card {
                         VStack(alignment: .leading, spacing: 8) {
                             Label("Waiting on the Mac", systemImage: "laptopcomputer").font(.headline)
-                            Text("You were at the Mac when this came in, so the prompt is showing there. Answer it on the Mac, or, for a Terminal session, use the 1/2/3 keys in the Terminal tab. Switch Away mode to Phone to answer future prompts here.")
+                            Text("This prompt can only be answered on the Mac.")
                                 .font(.subheadline).foregroundStyle(Theme.secondary)
                         }
                     }
