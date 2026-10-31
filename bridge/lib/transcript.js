@@ -47,6 +47,9 @@ export function parseLine(line) {
   try { o = JSON.parse(line); } catch { return { items: [] }; }
   const out = { items: [] };
   if (o.type === 'ai-title' && o.aiTitle) out.title = o.aiTitle;
+  // A message submitted while Claude is busy is recorded as queued right away; its text only appears
+  // later, when the running step finishes and Claude picks it up.
+  if (o.type === 'queue-operation' && o.operation === 'enqueue') out.enqueued = true;
   // Messages delivered from the phone through the Stop hook: show them as the user's own bubbles.
   if (o.type === 'attachment' && o.attachment?.type === 'hook_additional_context' && !o.isSidechain) {
     for (const c of o.attachment.content ?? []) {
@@ -103,6 +106,7 @@ export class TranscriptTail {
     this.partial = '';
     this.items = [];
     this.title = null;
+    this.enqueues = 0;   // count of "message queued" records seen
   }
 
   // Reads anything appended since the last call; returns the new items.
@@ -124,6 +128,7 @@ export class TranscriptTail {
         if (!l) continue;
         const r = parseLine(l);
         if (r.title) this.title = r.title;
+        if (r.enqueued) this.enqueues++;
         fresh.push(...r.items);
       }
       this.items.push(...fresh);

@@ -575,10 +575,14 @@ function pollTranscript(s) {
   if (!s.transcriptPath) return;
   let t = tails.get(s.id);
   if (!t || t.file !== s.transcriptPath) { t = new TranscriptTail(s.transcriptPath); tails.set(s.id, t); }
+  const queuedBefore = t.enqueues;
   const fresh = t.poll();
   if (fresh.length) sendToSubscribers(s.id, { t: 'items', sessionId: s.id, items: fresh, reset: false });
   const waiting = vscodeSends.get(s.id);
-  if (waiting) for (const it of fresh) if (it.kind === 'user') waiting(it.text ?? '');
+  if (waiting) {
+    for (const it of fresh) if (it.kind === 'user') waiting(it.text ?? '');
+    if (t.enqueues > queuedBefore) waiting('(queued for the running turn)');
+  }
 }
 
 setInterval(() => { for (const id of vscodeSends.keys()) { const s = sessions.get(id); if (s) pollTranscript(s); } }, 700);
@@ -781,6 +785,7 @@ async function onPhoneMessage(ws, c, m) {
       const promptOpen = [...pending.values()].some(p => p.info.sessionId === s.id && (p.info.kind === 'permission' || p.info.kind === 'question'))
         || s.status === 'needs_permission';
       if ((m.mode === 'vscode' || m.mode === 'auto') && vscodeChat && promptOpen) {
+        log(`vscode send held back for ${s.project}: approval or question open`);
         return toast(ws, 'Claude is waiting on an approval or question in this chat. Answer it first (it’s at the top of the session), then send your message.', 'error');
       }
       if ((m.mode === 'vscode' || (m.mode === 'auto' && vscodeChat)) && !hold) {
@@ -844,6 +849,7 @@ async function onPhoneMessage(ws, c, m) {
 // press Return, then confirm with that session's own UserPromptSubmit hook.
 async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
   const failed = msg => {
+    log(`vscode send not done for ${s.project}: ${msg.slice(0, 120)}`);
     if (!queueOnFail) return toast(ws, msg, 'error');
     const q = queued.get(s.id) ?? [];
     q.push(text);
@@ -858,6 +864,7 @@ async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
   }
   const title = tails.get(s.id)?.title ?? s.title ?? null;
   if (!title) return failed("This session doesn't have a title yet, so CC Remote can't confirm it's typing into the right VS Code tab.");
+  pollTranscript(s);
   const submitted = new Promise(resolve => {
     const t = setTimeout(() => resolve(null), 12e3);
     vscodeSends.set(s.id, prompt => { clearTimeout(t); resolve(prompt); });

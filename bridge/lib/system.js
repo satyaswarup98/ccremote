@@ -246,6 +246,7 @@ async function raiseVSCodeWindow(n) {
     'if (value of attribute "AXSubrole" of w) is "AXStandardWindow" then',
     'set n to n + 1',
     'if n is target then',
+    'if (value of attribute "AXMinimized" of w) then set value of attribute "AXMinimized" of w to false',
     'perform action "AXRaise" of w',
     'set frontmost to true',
     'return name of w',
@@ -265,6 +266,13 @@ export async function vscodeSubmit({ sessionId, cwd, text, title }) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   if (await macLocked()) throw fail('locked');
   if (!fs.existsSync('/Applications/Visual Studio Code.app')) throw fail('no-vscode');
+  // VS Code may be behind other apps or hidden (⌘H); a hidden app reports no windows at all, so bring it
+  // forward first. (Activating doesn't launch it if it isn't running.)
+  const running = await run('/usr/bin/pgrep', ['-x', 'Code']).then(() => true, () => false);
+  if (running) {
+    await run('/usr/bin/osascript', ['-e', 'tell application id "com.microsoft.VSCode" to activate'], { timeout: 8000 }).catch(() => {});
+    await wait(500);
+  }
   let titles;
   try {
     titles = await vscodeWindowTitles();
@@ -284,7 +292,7 @@ export async function vscodeSubmit({ sessionId, cwd, text, title }) {
     const folderWin = titles.findIndex(t => folderOf(t) === path.basename(cwd ?? ''));
     if (folderWin >= 0) {
       await raiseVSCodeWindow(folderWin + 1).catch(() => {});
-    } else if (titles.length === 0 && cwd && fs.existsSync(CODE_CLI)) {
+    } else if (titles.length === 0 && !running && cwd && fs.existsSync(CODE_CLI)) {
       await run(CODE_CLI, [cwd], { timeout: 10000 }).catch(() => {});
     } else {
       throw fail('not-visible');
