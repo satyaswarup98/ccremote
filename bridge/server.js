@@ -877,34 +877,54 @@ async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
   }
   const title = tails.get(s.id)?.title ?? s.title ?? null;
   if (!title) return failed("This session doesn't have a title yet, so CC Remote can't confirm it's typing into the right VS Code tab.");
-  pollTranscript(s);
-  const submitted = new Promise(resolve => {
-    const t = setTimeout(() => resolve(null), 12e3);
-    vscodeSends.set(s.id, prompt => { clearTimeout(t); resolve(prompt); });
-  });
-  try {
-    await vscodeSubmit({ sessionId: s.id, cwd: s.rootDir ?? s.cwd, text, title });
-  } catch (e) {
+  const why = e => ({
+    locked: "The Mac is locked, and macOS doesn't let anything type into apps behind the lock screen. Replies to a turn that's waiting for you still work while it's locked.",
+    'no-vscode': "VS Code isn't installed on this Mac.",
+    'not-visible': "CC Remote couldn't tell which VS Code window has this chat, so it didn't open anything. On the Mac, click this chat's tab once (so it's the visible tab in its window), then send again.",
+    'wrong-tab': `VS Code showed a different chat ("${e.message}"), so nothing was typed. On the Mac, open this session's tab once, then try again.`,
+    'not-front': `VS Code didn't come to the front (${e.message} was in front), so nothing was typed.`,
+    accessibility: 'The Mac needs a one-time permission: System Settings → Privacy & Security → Accessibility → turn on "node" (and allow it to control "System Events" if asked). Then send again.',
+  }[e.reason] ?? `Couldn't send to VS Code: ${e.message}`);
+
+  // Has this exact text shown up in the chat? (Messages typed mid-turn can appear late.)
+  const norm = t => String(t ?? '').replace(/\s+/g, ' ').trim();
+  const want = norm(text).slice(0, 200);
+  const inChat = () => {
+    pollTranscript(s);
+    return (tails.get(s.id)?.items ?? []).slice(-40).some(i => i.kind === 'user' && norm(i.text).includes(want));
+  };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const ok = () => { log(`phone message -> ${s.project} (VS Code)`); return toast(ws, 'Sent to VS Code ✓'); };
+
+  // Up to two tries. A retry only happens when the message is confirmed NOT to be in the chat,
+  // so a slow confirmation never turns into a duplicate.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    pollTranscript(s);
+    const submitted = new Promise(resolve => {
+      const t = setTimeout(() => resolve(null), 12e3);
+      vscodeSends.set(s.id, prompt => { clearTimeout(t); resolve(prompt); });
+    });
+    try {
+      await vscodeSubmit({ sessionId: s.id, cwd: s.rootDir ?? s.cwd, text, title });
+    } catch (e) {
+      vscodeSends.delete(s.id);
+      log(`vscode send failed (${e.reason ?? 'error'}, try ${attempt}): ${e.message}`);
+      // VS Code was slow to come forward: nothing was typed, so trying again is safe.
+      if (e.reason === 'not-front' && attempt === 1) { await sleep(1500); continue; }
+      return failed(why(e));
+    }
+    const prompt = await submitted;
     vscodeSends.delete(s.id);
-    const why = {
-      locked: "The Mac is locked, and macOS doesn't let anything type into apps behind the lock screen. Replies to a turn that's waiting for you still work while it's locked.",
-      'no-vscode': "VS Code isn't installed on this Mac.",
-      'not-visible': "CC Remote couldn't tell which VS Code window has this chat, so it didn't open anything. On the Mac, click this chat's tab once (so it's the visible tab in its window), then send again.",
-      'wrong-tab': `VS Code showed a different chat ("${e.message}"), so nothing was typed. On the Mac, open this session's tab once, then try again.`,
-      'not-front': `VS Code didn't come to the front (${e.message} was in front), so nothing was pressed. If you see your message in the VS Code prompt box, press Enter on the Mac.`,
-      accessibility: 'The Mac needs a one-time permission: System Settings → Privacy & Security → Accessibility → turn on "node" (and allow it to control "System Events" if asked). Then send again.',
-    }[e.reason] ?? `Couldn't send to VS Code: ${e.message}`;
-    log(`vscode send failed (${e.reason ?? 'error'}): ${e.message}`);
-    return failed(why);
+    if (prompt != null) return ok();
+    // Not confirmed yet: look for the text in the chat for a little longer before deciding.
+    for (let i = 0; i < 20; i++) {
+      if (inChat()) return ok();
+      await sleep(500);
+    }
+    log(`vscode send unconfirmed for ${s.project} (try ${attempt})`);
+    if (attempt === 1) toast(ws, 'Not confirmed yet, sending again…');
   }
-  const prompt = await submitted;
-  vscodeSends.delete(s.id);
-  if (prompt != null) {
-    log(`phone message -> ${s.project} (VS Code)`);
-    return toast(ws, 'Sent to VS Code ✓');
-  }
-  log(`vscode send unconfirmed for ${s.project}`);
-  return toast(ws, "Your message was put into VS Code, but it wasn't confirmed as sent. Check the session on the Mac; it may be waiting in the prompt box.", 'error');
+  return toast(ws, "CC Remote typed your message twice but couldn't confirm it reached the chat. Check the session on the Mac before sending again.", 'error');
 }
 
 function recentDirs() {
