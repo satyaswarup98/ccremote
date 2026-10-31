@@ -235,15 +235,64 @@ export function titleMatches(windowTitle, title, cwd) {
   return tab.length >= 4 && want.length > 0 && (want.startsWith(tab) || tab.startsWith(want));
 }
 
+// Brings VS Code's n-th real window (1-based, same order as vscodeWindowTitles) to the front.
+async function raiseVSCodeWindow(n) {
+  const script = [
+    'on run argv',
+    'set target to (item 1 of argv) as integer',
+    'tell application "System Events" to tell process "Code"',
+    'set n to 0',
+    'repeat with w in windows',
+    'if (value of attribute "AXSubrole" of w) is "AXStandardWindow" then',
+    'set n to n + 1',
+    'if n is target then',
+    'perform action "AXRaise" of w',
+    'set frontmost to true',
+    'return name of w',
+    'end if',
+    'end if',
+    'end repeat',
+    'end tell',
+    'end run',
+  ].join('\n');
+  await run('/usr/bin/osascript', ['-e', script, String(n)], { timeout: 8000 });
+}
+
+const folderOf = t => (t.includes(' — ') ? t.split(' — ').pop().trim() : null);
+
 export async function vscodeSubmit({ sessionId, cwd, text, title }) {
   const fail = (reason, msg) => Object.assign(new Error(msg ?? reason), { reason });
+  const wait = ms => new Promise(r => setTimeout(r, ms));
   if (await macLocked()) throw fail('locked');
   if (!fs.existsSync('/Applications/Visual Studio Code.app')) throw fail('no-vscode');
-  // The handler only resumes sessions from the folder open in the focused window, so focus that folder first.
-  if (cwd && fs.existsSync(CODE_CLI)) await run(CODE_CLI, [cwd], { timeout: 10000 }).catch(() => {});
-  await new Promise(r => setTimeout(r, 900));
-  await run('/usr/bin/open', [`vscode://anthropic.claude-code/open?session=${encodeURIComponent(sessionId)}`], { timeout: 10000 });
-  await new Promise(r => setTimeout(r, 1800));
+  let titles;
+  try {
+    titles = await vscodeWindowTitles();
+  } catch (e) {
+    if (/not allowed|assistive|-1719|-1728|1002/.test(String(e.stderr || e.message))) throw fail('accessibility', String(e.stderr || e.message));
+    titles = [];   // VS Code not running
+  }
+  const showing = titles.findIndex(t => titleMatches(t, title, cwd));
+  if (showing >= 0) {
+    // A window is already showing this chat: bring that one forward; no link, no new windows.
+    await raiseVSCodeWindow(showing + 1).catch(e => { throw fail('accessibility', String(e.stderr || e.message)); });
+    await wait(600);
+  } else {
+    // The chat isn't the visible tab anywhere. The extension's link resumes a session only from the
+    // folder open in the focused window, and opening a second window for that folder makes VS Code offer
+    // to move the chat. So: use the window that already has the folder; open one only if VS Code has none.
+    const folderWin = titles.findIndex(t => folderOf(t) === path.basename(cwd ?? ''));
+    if (folderWin >= 0) {
+      await raiseVSCodeWindow(folderWin + 1).catch(() => {});
+    } else if (titles.length === 0 && cwd && fs.existsSync(CODE_CLI)) {
+      await run(CODE_CLI, [cwd], { timeout: 10000 }).catch(() => {});
+    } else {
+      throw fail('not-visible');
+    }
+    await wait(900);
+    await run('/usr/bin/open', [`vscode://anthropic.claude-code/open?session=${encodeURIComponent(sessionId)}`], { timeout: 10000 });
+    await wait(1800);
+  }
   let front;
   try {
     front = await frontmostApp();

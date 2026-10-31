@@ -845,6 +845,7 @@ async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
     const why = {
       locked: "The Mac's screen is locked, so VS Code can't be typed into.",
       'no-vscode': "VS Code isn't installed on this Mac.",
+      'not-visible': "CC Remote couldn't tell which VS Code window has this chat, so it didn't open anything. On the Mac, click this chat's tab once (so it's the visible tab in its window), then send again.",
       'wrong-tab': `VS Code showed a different chat ("${e.message}"), so nothing was typed. On the Mac, open this session's tab once, then try again.`,
       'not-front': `VS Code didn't come to the front (${e.message} was in front), so nothing was pressed. If you see your message in the VS Code prompt box, press Enter on the Mac.`,
       accessibility: 'The Mac needs a one-time permission: System Settings → Privacy & Security → Accessibility → turn on "node" (and allow it to control "System Events" if asked). Then send again.',
