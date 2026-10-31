@@ -376,10 +376,8 @@ async function handleHook(ev, headers, abort) {
       s.activity = `${ev.tool_name}: ${toolSummary(ev.tool_name, ev.tool_input)}`.slice(0, 200);
       broadcastState();
       if (ev.tool_name !== 'AskUserQuestion') return null;
-      if (!away) {
-        notifyPhone({ kind: 'question', sessionId: s.id, project: s.project, questions: ev.tool_input?.questions ?? [], answerable: false });
-        return null;
-      }
+      // At the Mac the question reaches the phone through PermissionRequest instead.
+      if (!away) return null;
       const answers = await holdRequest({
         kind: 'question', sessionId: s.id, project: s.project, answerable: true,
         toolName: ev.tool_name, questions: ev.tool_input?.questions ?? [],
@@ -401,6 +399,23 @@ async function handleHook(ev, headers, abort) {
       return null;
 
     case 'PermissionRequest': {
+      // Claude's multiple-choice questions can arrive as a permission request. Show them as a
+      // question on the phone and answer through updatedInput, the way the Mac dialog would.
+      if (ev.tool_name === 'AskUserQuestion') {
+        if (!devices.length) return null;
+        const answers = await holdRequest({
+          kind: 'question', sessionId: s.id, project: s.project, answerable: true,
+          toolName: ev.tool_name, questions: ev.tool_input?.questions ?? [],
+        }, PERMISSION_HOLD_MS, abort, `${ev.tool_name}:${JSON.stringify(ev.tool_input ?? {})}`);
+        if (!answers) return null;
+        log(`phone answered question in ${s.project}`);
+        return {
+          hookSpecificOutput: {
+            hookEventName: 'PermissionRequest',
+            decision: { behavior: 'allow', updatedInput: { ...ev.tool_input, answers } },
+          },
+        };
+      }
       const suggestions = Array.isArray(ev.permission_suggestions) ? ev.permission_suggestions : [];
       const info = {
         kind: 'permission', sessionId: s.id, project: s.project, toolName: ev.tool_name,
