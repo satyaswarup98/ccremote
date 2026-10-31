@@ -14,13 +14,13 @@ command -v git >/dev/null 2>&1 && git --version >/dev/null 2>&1 || {
 }
 
 if [ -d "$DIR/.git" ]; then
-  echo "Updating $DIR…"
+  echo "Updating ${DIR}…"
   git -C "$DIR" pull --ff-only --quiet
 elif [ -e "$DIR" ]; then
   echo "$DIR already exists and isn't a CC Remote download. Move it away (or set CCREMOTE_DIR=/other/path) and run again."
   exit 1
 else
-  echo "Downloading CC Remote into $DIR…"
+  echo "Downloading CC Remote into ${DIR}…"
   git clone --quiet --depth 1 "$REPO" "$DIR"
 fi
 exec "$DIR/setup.sh" "${1:-all}"
