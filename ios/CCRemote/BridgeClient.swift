@@ -281,7 +281,7 @@ final class BridgeClient {
         send(["t": "unsubscribe"])
     }
 
-    enum SendMode: String { case auto, fork, queue }
+    enum SendMode: String { case auto, vscode, fork, queue }
 
     func sendText(_ text: String, to sessionId: String, mode: SendMode = .auto) {
         send(["t": "send", "sessionId": sessionId, "text": text, "mode": mode.rawValue])

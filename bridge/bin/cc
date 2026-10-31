@@ -1,6 +1,6 @@
 #!/bin/sh
 # Runs Claude Code inside tmux so CC Remote can mirror the screen and type into it.
-# Usage: cc [claude args...]   (detach with Ctrl-b d, reattach with: tmux attach -t <name>)
+# Usage: cc [claude args...]   (tmux: detach Ctrl-b d, reattach tmux attach; screen: Ctrl-a d, screen -r)
 find_claude() {
   for c in "$HOME/.local/bin/claude" /opt/homebrew/bin/claude /usr/local/bin/claude; do
     [ -x "$c" ] && { echo "$c"; return; }
@@ -10,9 +10,14 @@ find_claude() {
 }
 CLAUDE=$(find_claude)
 [ -n "$CLAUDE" ] || { echo "cc: claude binary not found" >&2; exit 1; }
-TMUX_BIN=$(command -v tmux || echo /opt/homebrew/bin/tmux)
-if [ -n "$TMUX" ]; then
+# Already inside tmux or screen: just run claude here.
+if [ -n "${TMUX:-}" ] || [ -n "${STY:-}" ]; then
   exec "$CLAUDE" "$@"
 fi
 NAME="cc-$(basename "$PWD" | tr -c 'A-Za-z0-9_-' '_' | cut -c1-20)-$(date +%H%M%S)"
-exec "$TMUX_BIN" new-session -s "$NAME" -c "$PWD" "$CLAUDE" "$@"
+TMUX_BIN=$(command -v tmux || true)
+if [ -n "$TMUX_BIN" ]; then
+  exec "$TMUX_BIN" new-session -s "$NAME" -c "$PWD" "$CLAUDE" "$@"
+fi
+# No tmux: macOS's built-in GNU screen (detach with Ctrl-a d, reattach with: screen -r)
+exec /usr/bin/screen -S "$NAME" "$CLAUDE" "$@"

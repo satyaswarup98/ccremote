@@ -12,7 +12,7 @@ import {
   ensureStateDir, loadConfig, saveConfig, readSecret, certFingerprint,
 } from './lib/paths.js';
 import { TranscriptTail, toolSummary, PHONE_PREFIX } from './lib/transcript.js';
-import { macIdleSeconds, findClaudeBinary, tmux, hostName } from './lib/system.js';
+import { macIdleSeconds, findClaudeBinary, term, hostName, vscodeSubmit, vscodeWindowTitles } from './lib/system.js';
 
 ensureStateDir();
 let config = loadConfig();
@@ -101,6 +101,7 @@ const sessions = new Map();   // sessionId -> session
 const pending = new Map();    // requestId -> { info, resolve, timer }
 const queued = new Map();     // sessionId -> [text] waiting for the next Stop
 const tails = new Map();      // sessionId -> TranscriptTail
+const vscodeSends = new Map(); // sessionId -> resolve(), waiting for UserPromptSubmit after a "Send to VS Code"
 const launches = new Map();   // CCR_ORIGIN token -> { ws, placeholderId, title } for sessions started from the phone
 
 // Starts claude in tmux and immediately shows it on the phone as a "Starting…" session with a live
@@ -112,16 +113,16 @@ async function launchTerminal(ws, cwd, args, title) {
   const origin = crypto.randomBytes(8).toString('hex');
   let pane;
   try {
-    ({ pane } = await tmux.newSession(cwd, bin, args, { CCR_ORIGIN: origin }));
+    ({ pane } = await term.newSession(cwd, bin, args, { CCR_ORIGIN: origin }));
   } catch (e) {
     if (e.code === 'ENOENT') {
-      return toast(ws, 'Terminal sessions need tmux on the Mac. Install it with: brew install tmux (approvals, questions and messages work without it).', 'error');
+      return toast(ws, 'Terminal sessions need tmux or GNU screen on the Mac, and neither was found.', 'error');
     }
     return toast(ws, `tmux failed: ${e.message}`, 'error');
   }
   const placeholderId = `launch-${origin}`;
   sessions.set(placeholderId, {
-    id: placeholderId, cwd, project: path.basename(cwd) || '~', title, entrypoint: 'cli', tmuxPane: pane,
+    id: placeholderId, cwd, project: path.basename(cwd) || '~', title, entrypoint: 'cli', termId: pane,
     status: 'working', activity: 'Starting Claude…', lastMessage: null, lastPrompt: null, permissionMode: null,
     startedAt: Date.now(), updatedAt: Date.now(), transcriptPath: null, lastHookAt: Date.now(), placeholder: true,
   });
@@ -144,7 +145,7 @@ function upsertSession(ev, headers) {
   if (!s) {
     s = {
       id, cwd: ev.cwd, project: path.basename(ev.cwd || '') || '~', title: null,
-      entrypoint: headers['x-entrypoint'] || 'cli', tmuxPane: null, status: 'idle',
+      entrypoint: headers['x-entrypoint'] || 'cli', termId: null, status: 'idle',
       activity: null, lastMessage: null, lastPrompt: null, permissionMode: null,
       startedAt: Date.now(), updatedAt: Date.now(), transcriptPath: null,
     };
@@ -153,8 +154,11 @@ function upsertSession(ev, headers) {
   if (ev.cwd) { s.cwd = ev.cwd; s.project = path.basename(ev.cwd) || '~'; }
   if (ev.transcript_path) s.transcriptPath = ev.transcript_path;
   if (ev.permission_mode) s.permissionMode = ev.permission_mode;
+  // Which terminal Claude runs in, if any: a tmux pane, or a GNU screen session ($STY).
   const pane = headers['x-tmux-pane'];
-  if (pane && /^%\d+$/.test(pane)) s.tmuxPane = pane;
+  const sty = headers['x-screen'];
+  if (pane && /^%\d+$/.test(pane)) s.termId = pane;
+  else if (sty && /^\d+\.[\w.-]+$/.test(sty)) s.termId = `screen:${sty}`;
   if (headers['x-entrypoint']) s.entrypoint = headers['x-entrypoint'];
   s.updatedAt = Date.now();
   s.lastHookAt = Date.now();
@@ -194,7 +198,7 @@ function scanRegistry() {
     if (!s) {
       s = {
         id: r.sessionId, cwd: r.cwd, project: path.basename(r.cwd || '') || '~', title: null,
-        entrypoint: r.entrypoint || 'cli', tmuxPane: null, status: 'idle', activity: null,
+        entrypoint: r.entrypoint || 'cli', termId: null, status: 'idle', activity: null,
         lastMessage: null, lastPrompt: null, permissionMode: null, startedAt: r.startedAt ?? Date.now(),
         updatedAt: r.statusUpdatedAt ?? r.updatedAt ?? r.startedAt ?? Date.now(),
         transcriptPath: findTranscript(r.sessionId), lastHookAt: 0,
@@ -221,7 +225,7 @@ function scanRegistry() {
     }
   }
   for (const s of [...sessions.values()]) {
-    if (s.placeholder) tmux.paneAlive(s.tmuxPane).then(ok => { if (!ok && sessions.delete(s.id)) broadcastState(); });
+    if (s.placeholder) term.paneAlive(s.termId).then(ok => { if (!ok && sessions.delete(s.id)) broadcastState(); });
   }
   if (changed) broadcastState();
 }
@@ -233,7 +237,7 @@ const TRUST_RE = /Is this a project you created or one you trust\?|Do you trust 
 setInterval(() => {
   for (const s of [...sessions.values()]) {
     if (!s.placeholder || s.trustAsked) continue;
-    tmux.capture(s.tmuxPane).then(screen => {
+    term.capture(s.termId).then(screen => {
       if (s.trustAsked || !TRUST_RE.test(screen.replace(/\x1b\[[0-9;]*m/g, ''))) return;
       s.trustAsked = true;
       s.activity = 'Waiting: trust this folder?';
@@ -245,13 +249,13 @@ setInterval(() => {
       }, 30 * 60e3).then(async decision => {
         if (!sessions.has(s.id)) return;
         if (decision?.behavior === 'allow') {
-          await tmux.sendKeys(s.tmuxPane, ['down']);
+          await term.sendKeys(s.termId, ['down']);
           await new Promise(r => setTimeout(r, 200));
-          await tmux.sendKeys(s.tmuxPane, ['enter']);
+          await term.sendKeys(s.termId, ['enter']);
           s.activity = 'Starting Claude…';
           log(`phone trusted folder ${s.cwd}`);
         } else if (decision) {
-          await tmux.sendKeys(s.tmuxPane, ['esc']);
+          await term.sendKeys(s.termId, ['esc']);
           log(`phone declined folder trust for ${s.cwd}`);
         }
         broadcastState();
@@ -269,7 +273,7 @@ function sessionView(s) {
   const tail = tails.get(s.id);
   return {
     id: s.id, cwd: s.cwd, project: s.project, title: tail?.title ?? s.title ?? s.name ?? null,
-    entrypoint: s.entrypoint, hasMirror: !!s.tmuxPane, status, activity: s.activity,
+    entrypoint: s.entrypoint, hasMirror: !!s.termId, status, activity: s.activity,
     lastMessage: s.lastMessage, lastPrompt: s.lastPrompt, permissionMode: s.permissionMode,
     updatedAt: s.updatedAt, queued: (queued.get(s.id) ?? []).length,
     holdingForPhone: reqs.some(r => r.kind === 'stop'),
@@ -367,6 +371,7 @@ async function handleHook(ev, headers, abort) {
     }
 
     case 'UserPromptSubmit':
+      vscodeSends.get(s.id)?.(String(ev.prompt ?? ''));
       s.idlePinged = false;
       s.status = 'working';
       s.lastPrompt = String(ev.prompt ?? '').slice(0, 500);
@@ -479,7 +484,7 @@ async function handleHook(ev, headers, abort) {
       broadcastState();
       s.idlePinged = true;
       // tmux sessions take phone messages as real keystrokes, so there's no reason to hold them.
-      if (!away || s.tmuxPane) {
+      if (!away || s.termId) {
         notifyPhone({ kind: 'done', sessionId: s.id, project: s.project, summary: (s.lastMessage ?? 'Claude finished.').slice(0, 300) });
         return null;
       }
@@ -541,8 +546,8 @@ setInterval(() => {
     const s = sessions.get(id);
     if (!s) continue;
     pollTranscript(s);
-    if (s.tmuxPane) {
-      tmux.capture(s.tmuxPane).then(text => {
+    if (s.termId) {
+      term.capture(s.termId).then(text => {
         if (lastScreen.get(id) === text) return;
         lastScreen.set(id, text);
         sendToSubscribers(id, { t: 'screen', sessionId: id, text });
@@ -713,6 +718,10 @@ async function onPhoneMessage(ws, c, m) {
       const text = String(m.text ?? '').trim();
       if (!s || !text) return;
       const hold = [...pending.values()].find(p => p.info.sessionId === s.id && p.info.kind === 'stop');
+      const idleVSCode = !hold && !s.termId && s.entrypoint.includes('vscode') && s.status !== 'working' && s.status !== 'ended';
+      if ((m.mode === 'vscode' || (m.mode === 'auto' && idleVSCode)) && !hold) {
+        return sendToVSCode(ws, s, text, { queueOnFail: m.mode === 'auto' });
+      }
       if (m.mode === 'fork' && !hold) {
         // Idle VS Code session: run the message now in a terminal copy of the conversation.
         const title = `Copy: ${tails.get(s.id)?.title ?? s.title ?? s.name ?? s.project}`;
@@ -722,9 +731,9 @@ async function onPhoneMessage(ws, c, m) {
         log(`phone message -> ${s.project} (via held Stop)`);
         return hold.resolve(text);
       }
-      if (s.tmuxPane && await tmux.paneAlive(s.tmuxPane)) {
-        log(`phone message -> ${s.project} (via tmux)`);
-        await tmux.sendText(s.tmuxPane, text);
+      if (s.termId && await term.paneAlive(s.termId)) {
+        log(`phone message -> ${s.project} (via terminal)`);
+        await term.sendText(s.termId, text);
         return toast(ws, 'Sent');
       }
       const q = queued.get(s.id) ?? [];
@@ -733,7 +742,7 @@ async function onPhoneMessage(ws, c, m) {
       broadcastState();
       return toast(ws, s.status === 'working'
         ? 'Queued: Claude gets it as soon as this turn finishes.'
-        : 'Queued. This session is idle and not in tmux, so it gets the message the next time Claude stops. Turn on Away mode before you leave the Mac to keep sessions reachable.');
+        : 'Queued. This session is idle in VS Code, so it gets the message the next time Claude stops. Turn on Away mode before you leave the Mac to keep sessions reachable.');
     }
 
     case 'unqueue':
@@ -743,7 +752,7 @@ async function onPhoneMessage(ws, c, m) {
 
     case 'keys': {
       const s = sessions.get(m.sessionId);
-      if (s?.tmuxPane) await tmux.sendKeys(s.tmuxPane, Array.isArray(m.keys) ? m.keys.slice(0, 20) : []);
+      if (s?.termId) await term.sendKeys(s.termId, Array.isArray(m.keys) ? m.keys.slice(0, 20) : []);
       return;
     }
 
@@ -765,6 +774,52 @@ async function onPhoneMessage(ws, c, m) {
       return launchTerminal(ws, cwd, [], `New session in ${path.basename(cwd)}`);
     }
   }
+}
+
+// Delivers a phone message into the real VS Code session: pre-fill via the extension's URI handler,
+// press Return, then confirm with that session's own UserPromptSubmit hook.
+async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
+  const failed = msg => {
+    if (!queueOnFail) return toast(ws, msg, 'error');
+    const q = queued.get(s.id) ?? [];
+    q.push(text);
+    queued.set(s.id, q);
+    broadcastState();
+    return toast(ws, `${msg}\n\nQueued instead: Claude gets it the next time it stops in this session.`, 'error');
+  };
+  if (vscodeSends.has(s.id)) return toast(ws, 'Still sending the previous message to this session…');
+  // Typing into VS Code while someone is using the Mac would land in whatever they're doing.
+  if (idleSec < 30) {
+    return failed("Someone is using the Mac right now, so CC Remote won't type into VS Code.");
+  }
+  const title = tails.get(s.id)?.title ?? s.title ?? null;
+  if (!title) return failed("This session doesn't have a title yet, so CC Remote can't confirm it's typing into the right VS Code tab.");
+  const submitted = new Promise(resolve => {
+    const t = setTimeout(() => resolve(null), 12e3);
+    vscodeSends.set(s.id, prompt => { clearTimeout(t); resolve(prompt); });
+  });
+  try {
+    await vscodeSubmit({ sessionId: s.id, cwd: s.cwd, text, title });
+  } catch (e) {
+    vscodeSends.delete(s.id);
+    const why = {
+      locked: "The Mac's screen is locked, so VS Code can't be typed into.",
+      'no-vscode': "VS Code isn't installed on this Mac.",
+      'wrong-tab': `VS Code showed a different chat ("${e.message}"), so nothing was typed. On the Mac, open this session's tab once, then try again.`,
+      'not-front': `VS Code didn't come to the front (${e.message} was in front), so nothing was pressed. If you see your message in the VS Code prompt box, press Enter on the Mac.`,
+      accessibility: 'The Mac needs a one-time permission: System Settings → Privacy & Security → Accessibility → turn on "node" (and allow it to control "System Events" if asked). Then send again.',
+    }[e.reason] ?? `Couldn't send to VS Code: ${e.message}`;
+    log(`vscode send failed (${e.reason ?? 'error'}): ${e.message}`);
+    return failed(why);
+  }
+  const prompt = await submitted;
+  vscodeSends.delete(s.id);
+  if (prompt != null) {
+    log(`phone message -> ${s.project} (VS Code)`);
+    return toast(ws, 'Sent to VS Code ✓');
+  }
+  log(`vscode send unconfirmed for ${s.project}`);
+  return toast(ws, "Your message was put into VS Code, but it wasn't confirmed as sent. Check the session on the Mac; it may be waiting in the prompt box.", 'error');
 }
 
 function recentDirs() {
@@ -842,6 +897,9 @@ const local = http.createServer(async (req, res) => {
       await tickIdle();
       broadcastState();
       return json(res, 200, { awayMode: mode, away });
+    }
+    if (req.method === 'GET' && req.url === '/ctl/vscode-windows') {
+      return json(res, 200, { titles: await vscodeWindowTitles().catch(e => [`error: ${e.stderr || e.message}`]) });
     }
     if (req.method === 'POST' && req.url === '/ctl/reload') {
       config = loadConfig();

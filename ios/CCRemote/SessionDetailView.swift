@@ -8,12 +8,10 @@ struct SessionDetailView: View {
     @State private var activeRequest: PendingRequest?
     @AppStorage("terminalFontSize") private var fontSize: Double = 9.5
     @FocusState private var composerFocused: Bool
-    @State private var pendingText: String?
 
     private func deliver(_ text: String, mode: BridgeClient.SendMode) {
         client.sendText(text, to: sessionId, mode: mode)
         draft = ""
-        pendingText = nil
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
@@ -46,19 +44,8 @@ struct SessionDetailView: View {
                 Composer(session: s, draft: $draft, focused: $composerFocused) {
                     let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !text.isEmpty else { return }
-                    // Nothing can type into an idle VS Code panel, so let the user pick how to deliver it.
-                    if !s.hasMirror && !s.holdingForPhone && s.status != .working {
-                        pendingText = text
-                    } else {
-                        deliver(text, mode: .auto)
-                    }
-                }
-                .confirmationDialog("This session is idle in VS Code", isPresented: Binding(get: { pendingText != nil }, set: { if !$0 { pendingText = nil } }), titleVisibility: .visible) {
-                    Button("Run now in a Terminal copy") { if let t = pendingText { deliver(t, mode: .fork) } }
-                    Button("Queue for the next time Claude stops") { if let t = pendingText { deliver(t, mode: .queue) } }
-                    Button("Cancel", role: .cancel) { pendingText = nil }
-                } message: {
-                    Text("VS Code can't be typed into from outside. A Terminal copy continues this conversation with your message right now, and you can watch it live. The VS Code session stays as it was.")
+                    // The Mac decides: reply to a waiting turn, type into the terminal or VS Code, or queue.
+                    deliver(text, mode: .auto)
                 }
             } else {
                 ContentUnavailableView("Session not found", systemImage: "questionmark.folder",
@@ -300,6 +287,7 @@ struct Composer: View {
         if session.holdingForPhone { return "Reply to Claude…" }
         if session.hasMirror { return "Type into the terminal…" }
         if session.status == .working { return "Queue a message for when Claude stops…" }
+        if session.isVSCode { return "Message Claude (sent into VS Code)…" }
         return "Message Claude…"
     }
 

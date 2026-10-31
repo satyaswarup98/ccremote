@@ -7,6 +7,7 @@ S="$HOME/.ccremote/hook.secret"
   -H "Content-Type: application/json" \
   -H "X-Secret: $(cat "$S")" \
   -H "X-Tmux-Pane: ${TMUX_PANE:-}" \
+  -H "X-Screen: ${STY:-}" \
   -H "X-Entrypoint: ${CLAUDE_CODE_ENTRYPOINT:-}" \
   -H "X-Ccr-Origin: ${CCR_ORIGIN:-}" \
   http://127.0.0.1:8788/hook 2>/dev/null

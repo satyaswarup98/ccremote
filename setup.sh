@@ -75,8 +75,7 @@ optional_tmux() {
     info "Installing tmux for the live Terminal view…"
     brew install tmux >/dev/null 2>&1 && { ok "tmux installed"; return; }
   fi
-  info "Optional: tmux isn't installed, so the phone's live Terminal view and 'cc' are off."
-  info "Approvals, questions, messages and notifications all work without it."
+  ok "Using macOS's built-in GNU screen for terminal sessions (install tmux for a coloured live view)"
 }
 
 check_xcode() {

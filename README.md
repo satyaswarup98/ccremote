@@ -22,7 +22,7 @@ To also build and install the iPhone app from this Mac (needs Xcode and the iPho
 curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash -s -- all
 ```
 
-Needs: a Mac with Claude Code. Nothing else to install first: if the Mac has no Node.js, setup downloads the official build into `~/.ccremote/node` (no admin password). Homebrew is optional; with it, setup also installs `tmux` for the phone's live Terminal view and `cc`. Building the iPhone app additionally needs Xcode from the App Store, an Apple ID (free is fine), and the iPhone on a USB cable.
+Needs: a Mac with Claude Code. Nothing else to install first: if the Mac has no Node.js, setup downloads the official build into `~/.ccremote/node` (no admin password). Homebrew is optional; with it, setup also installs `tmux` (a coloured live Terminal view). Without it, terminal sessions use macOS's built-in GNU screen. Building the iPhone app additionally needs Xcode from the App Store, an Apple ID (free is fine), and the iPhone on a USB cable.
 
 ```
 ~/ccremote/setup.sh app     # every 7 days on a free Apple ID: rebuild + reinstall the app
@@ -50,7 +50,7 @@ The script asks for your Apple ID team (from Xcode → Settings → Accounts) an
 
 - **Approvals**: `PermissionRequest` hook. When away, the bridge holds it until the phone answers (≤58 min); when you touch the Mac again it hands the prompt back to the Mac.
 - **Questions** (`AskUserQuestion`): `PreToolUse` hook returns the phone's answers via `updatedInput`.
-- **Messages**: tmux sessions get typed into directly. VS Code sessions receive the message through the `Stop` hook: when away, a finished turn waits ~14 min for a reply. For an idle VS Code session the phone offers **Run now in a Terminal copy** (`claude --resume <id> --fork-session "<msg>"` in tmux, live mirror) or **Queue** for the next stop.
+- **Messages**: a turn that's waiting for a reply (Away mode) gets it through the `Stop` hook. Terminal sessions (tmux or screen) are typed into. An idle VS Code session is typed into directly: the bridge brings its tab forward with the extension's documented `vscode://anthropic.claude-code/open?session=…` link, checks the VS Code window title shows that chat and folder, pastes, presses Return, and confirms through that session's `UserPromptSubmit` hook. It never types while the Mac is in use (idle < 30 s) or locked; then the message is queued for the next stop. Needs the Accessibility permission for `node` on the Mac (macOS asks once).
 - **Session list**: built from hook events plus Claude Code's own registry (`~/.claude/sessions/<pid>.json`), so idle sessions appear too and disappear when their process exits.
 - **Notifications**: approvals, questions, task complete, waiting for input. Native banners while the app is open; ntfy pushes while it's closed (turn-finished pings skipped while you're actively typing on the Mac).
 - Nothing is ever held until a phone has been paired, and the hook is a no-op if the bridge is down.
