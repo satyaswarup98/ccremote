@@ -12,7 +12,7 @@ import {
   ensureStateDir, loadConfig, saveConfig, readSecret, certFingerprint,
 } from './lib/paths.js';
 import { TranscriptTail, toolSummary, PHONE_PREFIX } from './lib/transcript.js';
-import { macIdleSeconds, macLocked, findClaudeBinary, term, hostName, vscodeSubmit, vscodeWindowTitles, checkPermissions } from './lib/system.js';
+import { macIdleSeconds, macLocked, findClaudeBinary, term, hostName, vscodeSubmit, vscodeWindowTitles, checkPermissions, claudeEnvFromVSCode } from './lib/system.js';
 
 ensureStateDir();
 let config = loadConfig();
@@ -87,7 +87,10 @@ async function tickIdle() {
   idleSec = await macIdleSeconds();
   const wasLocked = locked;
   locked = await macLocked();
-  if (locked !== wasLocked) { log(locked ? 'Mac locked' : 'Mac unlocked'); broadcastState(); }
+  if (locked !== wasLocked) {
+    log(locked ? 'Mac locked' : 'Mac unlocked');
+    broadcastState();
+  }
   const was = away;
   away = computeAway();
   if (was && !away && config.awayMode === 'auto' && idleSec < 5) {
@@ -165,6 +168,7 @@ function upsertSession(ev, headers) {
   if (pane && /^%\d+$/.test(pane)) s.termId = pane;
   else if (sty && /^\d+\.[\w.-]+$/.test(sty)) s.termId = `screen:${sty}`;
   if (headers['x-entrypoint']) s.entrypoint = headers['x-entrypoint'];
+  markPhoneSession(s);
   s.updatedAt = Date.now();
   s.lastHookAt = Date.now();
   return s;
@@ -228,6 +232,8 @@ function scanRegistry() {
   }
   for (const s of sessions.values()) {
     if (s.pid && !alive.has(s.id) && s.status !== 'ended') {
+      // A phone session's process exits after each turn; the session itself carries on.
+      if (s.phone) { s.status = 'idle'; s.pid = null; changed = true; continue; }
       s.status = 'ended';
       s.activity = null;
       s.updatedAt = Date.now();
@@ -308,6 +314,16 @@ setInterval(() => {
     }).catch(() => {});
   }
 }, 1000);
+
+function markPhoneSession(s) {
+  const p = phoneSessions.get(s.id);
+  if (!p) return;
+  s.phone = true;
+  s.entrypoint = 'phone';
+  s.rootDir ??= p.cwd;
+  s.project = path.basename(p.cwd) || s.project;
+  if (!s.title && p.title) s.title = p.title;
+}
 
 function sessionView(s) {
   const reqs = [...pending.values()].map(p => p.info).filter(i => i.sessionId === s.id);
@@ -400,7 +416,16 @@ async function handleHook(ev, headers, abort) {
       broadcastState();
       const origin = headers['x-ccr-origin'];
       const launch = origin && launches.get(origin);
-      if (launch) {
+      if (launch?.headless) {
+        const first = !launch.sessionId;
+        launch.sessionId = s.id;
+        running.set(s.id, running.get(s.id) ?? null);
+        if (!phoneSessions.has(s.id)) { phoneSessions.set(s.id, { cwd: launch.cwd, title: launch.title }); savePhoneSessions(); }
+        markPhoneSession(s);
+        if (!s.title && launch.title) s.title = launch.title;
+        broadcastState();
+        if (first && launch.ws.readyState === 1) setTimeout(() => launch.ws.send(JSON.stringify({ t: 'opened', sessionId: s.id })), 150);
+      } else if (launch) {
         launches.delete(origin);
         sessions.delete(launch.placeholderId);
         if (!s.title) s.title = launch.title;
@@ -528,8 +553,9 @@ async function handleHook(ev, headers, abort) {
       }
       broadcastState();
       s.idlePinged = true;
-      // tmux sessions take phone messages as real keystrokes, so there's no reason to hold them.
-      if (!away || s.termId) {
+      // tmux sessions take phone messages as real keystrokes, and a headless first turn must end so it
+      // can open in VS Code: never hold those.
+      if (!away || s.termId || s.phone) {
         notifyPhone({ kind: 'done', sessionId: s.id, project: s.project, summary: (s.lastMessage ?? 'Claude finished.').slice(0, 300) });
         return null;
       }
@@ -547,7 +573,7 @@ async function handleHook(ev, headers, abort) {
 
     case 'SessionEnd':
       releaseSession(s.id);
-      s.status = 'ended';
+      s.status = s.phone ? 'idle' : 'ended';
       s.activity = null;
       broadcastState();
       return null;
@@ -784,9 +810,20 @@ async function onPhoneMessage(ws, c, m) {
       const text = String(m.text ?? '').trim();
       if (!s || !text) return;
       const hold = [...pending.values()].find(p => p.info.sessionId === s.id && p.info.kind === 'stop');
+      if (s.phone && !hold) {
+        if (running.has(s.id)) {
+          // A turn is running: Claude picks this up when that turn stops.
+          const q = queued.get(s.id) ?? [];
+          q.push(text); queued.set(s.id, q); broadcastState();
+          return toast(ws, 'Claude is working on this one. It gets your message as soon as this step finishes.');
+        }
+        runPhoneTurn(ws, { cwd: s.rootDir ?? s.cwd, text, resumeId: s.id });
+        s.status = 'working'; s.activity = 'Thinking…'; s.lastPrompt = text.slice(0, 500); broadcastState();
+        return toast(ws, 'Sent ✓');
+      }
       // VS Code chats are typed into whether Claude is idle or working (mid-turn messages reach the
       // running turn), but never while an approval or question is open there: Return could answer it.
-      const vscodeChat = !hold && !s.termId && s.entrypoint.includes('vscode') && s.status !== 'ended';
+      const vscodeChat = !hold && !s.termId && !s.phone && s.entrypoint.includes('vscode') && s.status !== 'ended';
       const promptOpen = [...pending.values()].some(p => p.info.sessionId === s.id && (p.info.kind === 'permission' || p.info.kind === 'question'))
         || s.status === 'needs_permission';
       if ((m.mode === 'vscode' || m.mode === 'auto') && vscodeChat && promptOpen) {
@@ -845,6 +882,12 @@ async function onPhoneMessage(ws, c, m) {
     case 'newSession': {
       const cwd = String(m.cwd ?? '');
       if (!cwd.startsWith('/') || !fs.existsSync(cwd)) return toast(ws, 'That folder does not exist on the Mac.', 'error');
+      // New sessions open in VS Code unless the phone explicitly asks for a terminal one.
+      if (m.target !== 'terminal') {
+        const text = String(m.text ?? '').trim();
+        if (!text) return toast(ws, 'Type what Claude should do first.', 'error');
+        return newVSCodeChat(ws, cwd, text);
+      }
       return launchTerminal(ws, cwd, [], `New session in ${path.basename(cwd)}`);
     }
   }
@@ -883,6 +926,9 @@ async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
     'not-visible': "CC Remote couldn't tell which VS Code window has this chat, so it didn't open anything. On the Mac, click this chat's tab once (so it's the visible tab in its window), then send again.",
     'wrong-tab': `VS Code showed a different chat ("${e.message}"), so nothing was typed. On the Mac, open this session's tab once, then try again.`,
     'not-front': `VS Code didn't come to the front (${e.message} was in front), so nothing was typed.`,
+    'no-input': "CC Remote couldn't put the cursor in Claude's prompt box, so nothing was typed.",
+    'box-not-empty': "Claude's prompt box on the Mac already has other text in it, so CC Remote didn't add yours.",
+    'paste-missing': "The text didn't show up in Claude's prompt box, so Enter wasn't pressed.",
     accessibility: 'The Mac needs a one-time permission: System Settings → Privacy & Security → Accessibility → turn on "node" (and allow it to control "System Events" if asked). Then send again.',
   }[e.reason] ?? `Couldn't send to VS Code: ${e.message}`);
 
@@ -910,7 +956,7 @@ async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
       vscodeSends.delete(s.id);
       log(`vscode send failed (${e.reason ?? 'error'}, try ${attempt}): ${e.message}`);
       // VS Code was slow to come forward: nothing was typed, so trying again is safe.
-      if (e.reason === 'not-front' && attempt === 1) { await sleep(1500); continue; }
+      if (['not-front', 'no-input', 'paste-missing'].includes(e.reason) && attempt === 1) { await sleep(1500); continue; }
       return failed(why(e));
     }
     const prompt = await submitted;
@@ -927,9 +973,48 @@ async function sendToVSCode(ws, s, text, { queueOnFail = false } = {}) {
   return toast(ws, "CC Remote typed your message twice but couldn't confirm it reached the chat. Check the session on the Mac before sending again.", 'error');
 }
 
+// Sessions started from the phone run headless on the Mac with Claude Code's own CLI: the first turn as
+// `claude -p "<message>"`, each later phone message as `claude -p --resume <id> "<message>"`. No window or
+// typing is involved, so it works with the Mac locked, and approvals still come to the phone. The sessions
+// are ordinary Claude Code sessions in that folder, so they can also be opened later in VS Code.
+// (Starting a VS Code chat from outside isn't reliable: its prompt box doesn't take the cursor, and VS Code
+// decides which window a link goes to.)
+const PHONE_SESSIONS_FILE = path.join(STATE_DIR, 'phone-sessions.json');
+const phoneSessions = new Map(Object.entries((() => { try { return JSON.parse(fs.readFileSync(PHONE_SESSIONS_FILE, 'utf8')); } catch { return {}; } })()));
+const savePhoneSessions = () => fs.writeFileSync(PHONE_SESSIONS_FILE, JSON.stringify(Object.fromEntries(phoneSessions), null, 2));
+const running = new Map();   // sessionId -> child process of the turn in progress
+
+function runPhoneTurn(ws, { cwd, text, resumeId = null, title = null }) {
+  const bin = findClaudeBinary();
+  if (!bin) return toast(ws, 'Could not find the claude program on the Mac.', 'error');
+  const origin = crypto.randomBytes(8).toString('hex');
+  const launch = { ws, headless: true, cwd, title, sessionId: resumeId };
+  launches.set(origin, launch);
+  const args = resumeId ? ['-p', '--resume', resumeId, text] : ['-p', text];
+  const child = spawn(bin, args, { cwd, stdio: 'ignore', env: { ...process.env, ...claudeEnvFromVSCode(), CCR_ORIGIN: origin } });
+  if (resumeId) running.set(resumeId, child);
+  log(`phone ${resumeId ? 'continued' : 'started'} a session in ${cwd} (pid ${child.pid})`);
+  child.on('error', e => { launches.delete(origin); toast(ws, `Couldn't start Claude: ${e.message}`, 'error'); });
+  child.on('exit', code => {
+    launches.delete(origin);
+    const id = launch.sessionId;
+    if (id) running.delete(id);
+    if (!id) return toast(ws, `Claude stopped before the session started (exit ${code}).`, 'error');
+    const s = sessions.get(id);
+    if (s) { s.status = 'idle'; s.activity = null; broadcastState(); }
+    notifyPhone({ kind: 'done', sessionId: id, project: path.basename(cwd), summary: (s?.lastMessage ?? 'Claude finished.').slice(0, 300) });
+  });
+  return child;
+}
+
+function newVSCodeChat(ws, cwd, text) {
+  runPhoneTurn(ws, { cwd, text, title: text.slice(0, 60) });
+  toast(ws, `Starting a new session in ${path.basename(cwd)}…`);
+}
+
 function recentDirs() {
   const seen = new Map();
-  for (const s of sessions.values()) seen.set(s.cwd, s.updatedAt);
+  for (const s of sessions.values()) seen.set(s.rootDir ?? s.cwd, s.updatedAt);
   const root = path.join(process.env.HOME, '.claude/projects');
   try {
     for (const d of fs.readdirSync(root)) {

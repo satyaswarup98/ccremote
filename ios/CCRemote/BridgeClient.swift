@@ -382,7 +382,7 @@ final class BridgeClient {
 
     func setAway(_ mode: String) { send(["t": "setAway", "mode": mode]) }
     func loadRecentDirs() { send(["t": "recentDirs"]) }
-    func newSession(cwd: String) { send(["t": "newSession", "cwd": cwd]) }
+    func newSession(cwd: String, text: String) { send(["t": "newSession", "cwd": cwd, "text": text, "target": "vscode"]) }
 
     static func urlHost(_ host: String) -> String {
         host.contains(":") && !host.hasPrefix("[") ? "[\(host)]" : host

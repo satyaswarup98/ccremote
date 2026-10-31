@@ -212,7 +212,7 @@ struct SessionRow: View {
     }
 
     private var tag: some View {
-        Text(session.hasMirror ? "TERMINAL" : (session.isVSCode ? "VS CODE" : "CLI"))
+        Text(session.entrypoint == "phone" ? "PHONE" : session.hasMirror ? "TERMINAL" : (session.isVSCode ? "VS CODE" : "CLI"))
             .font(.system(size: 9, weight: .bold))
             .padding(.horizontal, 6).padding(.vertical, 3)
             .background(Theme.cardRaised, in: Capsule())
@@ -223,27 +223,53 @@ struct SessionRow: View {
 struct NewSessionSheet: View {
     @Environment(BridgeClient.self) private var client
     @Environment(\.dismiss) private var dismiss
-    @State private var custom = ""
+    @State private var folder = ""
+    @State private var message = ""
+    @FocusState private var messageFocused: Bool
+
+    private var canStart: Bool {
+        folder.hasPrefix("/") && !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    TextField("/Users/you/project", text: $custom)
-                        .font(.body.monospaced()).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Button("Start Claude here") { start(custom) }.disabled(!custom.hasPrefix("/"))
-                } header: { Text("Folder on the Mac") }
+                    TextField("e.g. Fix the failing tests in the upload script", text: $message, axis: .vertical)
+                        .lineLimit(3...8)
+                        .focused($messageFocused)
+                } header: { Text("What should Claude do?") }
+
                 Section {
                     ForEach(client.recentDirs, id: \.self) { dir in
-                        Button { start(dir) } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text((dir as NSString).lastPathComponent).font(.headline).foregroundStyle(Theme.text)
-                                Text(dir).font(.caption.monospaced()).foregroundStyle(Theme.secondary)
+                        Button { folder = dir } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text((dir as NSString).lastPathComponent).font(.headline).foregroundStyle(Theme.text)
+                                    Text(dir).font(.caption.monospaced()).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.head)
+                                }
+                                Spacer()
+                                if folder == dir { Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.accent) }
                             }
                         }
                     }
-                } header: { Text("Recent projects") } footer: {
-                    Text("Starts `claude` in a new tmux session on the Mac, so you also get the live terminal view. Attach on the Mac with `tmux attach`.")
+                    TextField("Other folder: /Users/you/project", text: $folder)
+                        .font(.body.monospaced()).textInputAutocapitalization(.never).autocorrectionDisabled()
+                } header: { Text("Project folder") }
+
+                Section {
+                    Button {
+                        client.newSession(cwd: folder, text: message.trimmingCharacters(in: .whitespacesAndNewlines))
+                        dismiss()
+                    } label: {
+                        Label("Start session", systemImage: "play.fill")
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(!canStart).opacity(canStart ? 1 : 0.5)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                } footer: {
+                    Text("Runs on the Mac in that folder, also while it's locked, and you follow it here. It's a normal Claude Code session, so you can open it later from the Claude Code history in VS Code.")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -254,12 +280,11 @@ struct NewSessionSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         }
-        .onAppear { client.loadRecentDirs() }
-        .presentationDetents([.medium, .large])
-    }
-
-    private func start(_ dir: String) {
-        client.newSession(cwd: dir)
-        dismiss()
+        .onAppear {
+            client.loadRecentDirs()
+            messageFocused = true
+        }
+        .onChange(of: client.recentDirs) { _, dirs in if folder.isEmpty, let first = dirs.first { folder = first } }
+        .presentationDetents([.large])
     }
 }

@@ -82,7 +82,7 @@ const tmux = {
   // Starts claude in a detached tmux session; the SessionStart hook registers it.
   async newSession(cwd, claudeBin, args = [], env = {}) {
     const name = `cc-${path.basename(cwd).replace(/[^\w-]/g, '_').slice(0, 20)}-${Date.now().toString(36).slice(-4)}`;
-    const envArgs = Object.entries(env).flatMap(([k, v]) => ['-e', `${k}=${v}`]);
+    const envArgs = Object.entries({ ...claudeEnvFromVSCode(), ...env }).flatMap(([k, v]) => ['-e', `${k}=${v}`]);
     const { stdout } = await run(TMUX, ['new-session', '-d', '-P', '-F', '#{pane_id}', '-s', name, '-x', '110', '-y', '40', ...envArgs, '-c', cwd, claudeBin, ...args]);
     return { name, pane: stdout.trim() };
   },
@@ -141,7 +141,7 @@ const screen = {
 
   async newSession(cwd, claudeBin, args = [], env = {}) {
     const name = `cc-${path.basename(cwd).replace(/[^\w-]/g, '_').slice(0, 20)}-${Date.now().toString(36).slice(-4)}`;
-    await run(SCREEN, ['-dmS', name, claudeBin, ...args], { cwd, env: { ...process.env, ...env, TERM: 'xterm-256color' } });
+    await run(SCREEN, ['-dmS', name, claudeBin, ...args], { cwd, env: { ...process.env, ...claudeEnvFromVSCode(), ...env, TERM: 'xterm-256color' } });
     let sty = null;
     for (let i = 0; i < 20 && !sty; i++) {
       const out = await run(SCREEN, ['-ls']).then(r => r.stdout, e => String(e.stdout ?? ''));
@@ -212,6 +212,58 @@ export async function vscodeWindowTitles() {
   ].join('\n');
   const { stdout } = await run('/usr/bin/osascript', ['-e', script], { timeout: 8000 });
   return stdout.split('\n').map(t => t.trim()).filter(Boolean);
+}
+
+// The element with keyboard focus in VS Code. Claude's prompt box reports role AXTextArea,
+// description "Message input", and its text as the value (a "…to focus or unfocus Claude" hint when empty).
+async function vscodeFocused() {
+  const script = ['tell application "System Events" to tell process "Code"',
+    'set f to value of attribute "AXFocusedUIElement"',
+    'set r to ""', 'set d to ""', 'set v to ""',
+    'try', 'set r to value of attribute "AXRole" of f', 'end try',
+    'try', 'set d to value of attribute "AXDescription" of f', 'end try',
+    'try', 'set v to value of attribute "AXValue" of f', 'end try',
+    'return r & linefeed & d & linefeed & v', 'end tell'].join('\n');
+  const { stdout } = await run('/usr/bin/osascript', ['-e', script], { timeout: 8000 });
+  const [role = '', desc = '', ...rest] = stdout.replace(/\n$/, '').split('\n');
+  const value = rest.join('\n');
+  return { role, desc, value: /Esc to focus or unfocus Claude/.test(value) ? '' : value };
+}
+
+const isPromptBox = f => f.role === 'AXTextArea' && /message input/i.test(f.desc);
+const keys = lines => run('/usr/bin/osascript', ['-e', ['tell application "System Events"', ...lines, 'end tell'].join('\n')], { timeout: 8000 });
+const FOCUS_KEY = 'keystroke "k" using {control down, option down, shift down, command down}';
+
+// Puts `text` into the visible Claude chat's prompt box and presses Return, checking each step:
+// the cursor must be in the prompt box, and the box must hold the text before Return is pressed.
+async function typeIntoPromptBox(text, fail, { readyWaitMs = 3000, everyMs = 900 } = {}) {
+  let f = null;
+  const until = Date.now() + readyWaitMs;
+  for (;;) {
+    await run('/usr/bin/osascript', ['-e', 'tell application id "com.microsoft.VSCode" to activate'], { timeout: 8000 }).catch(() => {});
+    await keys([FOCUS_KEY]);
+    await new Promise(r => setTimeout(r, 600));
+    f = await vscodeFocused().catch(() => null);
+    if (f && isPromptBox(f)) break;
+    if (Date.now() > until) break;
+    await new Promise(r => setTimeout(r, everyMs));
+  }
+  if (!f || !isPromptBox(f)) throw fail('no-input', f ? `${f.role} ${f.desc}`.trim() : 'nothing focused');
+  const norm = t => String(t ?? '').replace(/\s+/g, ' ').trim();
+  if (norm(f.value) && !norm(f.value).includes(norm(text))) throw fail('box-not-empty', f.value.slice(0, 80));
+  const saved = await clipboardGet();
+  try {
+    if (!norm(f.value).includes(norm(text))) {
+      await clipboardSet(text);
+      await keys(['keystroke "v" using command down']);
+      await new Promise(r => setTimeout(r, 500));
+      f = await vscodeFocused().catch(() => null);
+      if (!f || !norm(f.value).includes(norm(text).slice(0, 60))) throw fail('paste-missing', f ? f.value.slice(0, 80) : '');
+    }
+    await keys(['key code 36']);
+  } finally {
+    setTimeout(() => clipboardSet(saved).catch(() => {}), 800);
+  }
 }
 
 async function clipboardGet() {
@@ -318,29 +370,65 @@ export async function vscodeSubmit({ sessionId, cwd, text, title }) {
   if (front !== 'Code' && front !== 'Electron') throw fail('not-front', front);
   const shown = (await vscodeWindowTitles().catch(() => []))[0];
   if (!titleMatches(shown, title, cwd)) throw fail('wrong-tab', shown || '(no window)');
-  const saved = await clipboardGet();
   try {
-    await clipboardSet(text);
-    // Ctrl+Opt+Shift+Cmd+K runs "Claude Code: Focus input" (bound in VS Code's keybindings.json by
-    // CC Remote), so the paste lands in the visible chat's prompt box rather than wherever focus was.
-    await run('/usr/bin/osascript', ['-e', [
-      'tell application "System Events"',
-      'keystroke "k" using {control down, option down, shift down, command down}',
-      'delay 0.4',
-      'keystroke "v" using command down',
-      'delay 0.5',
-      'key code 36',
-      'end tell',
-    ].join('\n')], { timeout: 8000 });
+    await typeIntoPromptBox(text, fail);
   } catch (e) {
+    if (e.reason) throw e;
     throw fail('accessibility', String(e.stderr || e.message));
   } finally {
-    setTimeout(() => clipboardSet(saved).catch(() => {}), 800);
     // Back to whatever app the user was in.
     if (previous && previous !== 'com.microsoft.VSCode') {
       setTimeout(() => run('/usr/bin/osascript', ['-e', `tell application id "${previous.replace(/"/g, '')}" to activate`], { timeout: 8000 }).catch(() => {}), 300);
     }
   }
+}
+
+// The environment variables VS Code gives Claude Code (setting "claudeCode.environmentVariables"), e.g. the
+// Bedrock or API sign-in. Claude started by the bridge needs the same ones, or it isn't logged in. Read
+// fresh each time from VS Code's settings (JSON with comments); values are never logged.
+const VSCODE_SETTINGS = path.join(os.homedir(), 'Library/Application Support/Code/User/settings.json');
+
+function stripJsonComments(text) {
+  let out = '', inStr = false, esc = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], two = text.slice(i, i + 2);
+    if (inStr) { out += c; if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
+    if (c === '"') { inStr = true; out += c; continue; }
+    if (two === '//') { while (i < text.length && text[i] !== '\n') i++; out += '\n'; continue; }
+    if (two === '/*') { i = text.indexOf('*/', i + 2); if (i < 0) break; i++; continue; }
+    out += c;
+  }
+  return out.replace(/,(\s*[}\]])/g, '$1');
+}
+
+export function claudeEnvFromVSCode() {
+  try {
+    const settings = JSON.parse(stripJsonComments(fs.readFileSync(VSCODE_SETTINGS, 'utf8')));
+    const vars = settings['claudeCode.environmentVariables'];
+    const out = {};
+    for (const v of Array.isArray(vars) ? vars : []) if (v?.name && typeof v.value === 'string') out[v.name] = v.value;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+// Shows an existing session as a VS Code chat (documented handler vscode://anthropic.claude-code/open?session=…).
+// The handler resumes sessions from the folder open in the focused window, so that folder's window comes
+// forward first (or opens, if VS Code doesn't have one). Nothing is typed.
+export async function vscodeOpenSession({ sessionId, cwd }) {
+  const fail = (reason, msg) => Object.assign(new Error(msg ?? reason), { reason });
+  if (await macLocked()) throw fail('locked');
+  if (!fs.existsSync('/Applications/Visual Studio Code.app')) throw fail('no-vscode');
+  const running = await run('/usr/bin/pgrep', ['-x', 'Code']).then(() => true, () => false);
+  if (running) await run('/usr/bin/osascript', ['-e', 'tell application id "com.microsoft.VSCode" to activate'], { timeout: 8000 }).catch(() => {});
+  await new Promise(r => setTimeout(r, 500));
+  const titles = await vscodeWindowTitles().catch(() => []);
+  const win = titles.findIndex(t => folderOf(t) === path.basename(cwd));
+  if (win >= 0) await raiseVSCodeWindow(win + 1).catch(() => {});
+  else await run(CODE_CLI, [cwd], { timeout: 15000 }).catch(() => {});
+  await new Promise(r => setTimeout(r, win >= 0 ? 700 : (running ? 2500 : 6000)));
+  await run('/usr/bin/open', [`vscode://anthropic.claude-code/open?session=${encodeURIComponent(sessionId)}`], { timeout: 10000 });
 }
 
 // What Send to VS Code needs from macOS, checked from inside the bridge (that's the process macOS grants).

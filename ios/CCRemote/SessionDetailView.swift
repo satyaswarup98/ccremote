@@ -294,6 +294,7 @@ struct Composer: View {
         if session.status == .ended { return "Session ended" }
         if session.holdingForPhone { return "Reply to Claude…" }
         if session.hasMirror { return "Type into the terminal…" }
+        if session.entrypoint == "phone" { return "Message Claude…" }
         if session.isVSCode { return "Message Claude (sent into VS Code)…" }
         if session.status == .working { return "Queue a message for when Claude stops…" }
         return "Message Claude…"
