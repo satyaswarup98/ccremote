@@ -237,7 +237,7 @@ final class BridgeClient {
         }
         connection = .failed(Self.describe(error))
         guard wantConnection else { return }
-        // Try the Mac's other addresses (e.g. Tailscale when away from home Wi-Fi) before backing off.
+        // Try the Mac's other local addresses before backing off.
         if let p = pairing, candidateIndex + 1 < candidates(p).count {
             candidateIndex += 1
             connection = .connecting
@@ -262,7 +262,7 @@ final class BridgeClient {
             // Our pinning check cancels the connection when the certificate isn't this Mac's.
             return "Something other than your Mac answered, or the Mac's security key changed. If it keeps happening, re-pair from Settings."
         case NSURLErrorServerCertificateUntrusted, NSURLErrorSecureConnectionFailed:
-            return "Couldn't make a secure connection to the Mac. Check that it's on and that Tailscale is connected on both."
+            return "Couldn't make a secure connection to the Mac. Check that it's on and on the same Wi-Fi."
         case NSURLErrorBadServerResponse:
             return "The Mac refused this iPhone. Re-pair from Settings."
         default:

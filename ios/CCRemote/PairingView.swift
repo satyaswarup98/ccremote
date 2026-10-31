@@ -84,7 +84,7 @@ struct PairingView: View {
                 Text("Looking for your Mac on this Wi-Fi…").font(.subheadline).foregroundStyle(Theme.secondary)
             }
             if showManual {
-                TextField("192.168.1.20 or Tailscale IP", text: $manualHost)
+                TextField("192.168.1.20", text: $manualHost)
                     .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     .font(.body.monospaced())
                     .padding(14)

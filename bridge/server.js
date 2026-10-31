@@ -1215,19 +1215,19 @@ setInterval(() => {
   }
 }, 20e3);
 
-// Every IPv4 address the phone could use. Tailscale addresses (100.64.0.0/10) work from anywhere;
-// 169.254.x.x link-local ones never help, so they're left out.
+// The Mac's Wi-Fi/Ethernet IPv4 addresses for the phone. VPN (100.64.0.0/10) and 169.254.x.x link-local
+// addresses are left out: CC Remote works on the local network only.
 function lanAddresses() {
   const out = [];
   for (const [name, addrs] of Object.entries(os.networkInterfaces())) {
     for (const a of addrs ?? []) {
       if (a.family !== 'IPv4' || a.internal || a.address.startsWith('169.254.')) continue;
       const [x, y] = a.address.split('.').map(Number);
-      const kind = x === 100 && y >= 64 && y <= 127 ? 'tailscale' : 'lan';
-      out.push({ iface: name, address: a.address, kind });
+      if (x === 100 && y >= 64 && y <= 127) continue;
+      out.push({ iface: name, address: a.address, kind: 'lan' });
     }
   }
-  return out.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'lan' ? -1 : 1));
+  return out;
 }
 
 // Keep the Mac awake on power so the phone can reach it; on battery, macOS sleeps as usual.

@@ -123,7 +123,7 @@ struct TranscriptItem: Decodable, Identifiable, Hashable {
 
 struct BridgeAddress: Decodable, Hashable {
     let address: String
-    let kind: String          // lan | tailscale
+    let kind: String
 }
 
 struct Pairing: Codable, Equatable, Identifiable {
@@ -133,15 +133,8 @@ struct Pairing: Codable, Equatable, Identifiable {
     var fingerprint: String
     var macName: String
     var deviceId: String
-    // Every address the Mac has reported (Wi-Fi and Tailscale), tried in turn when one fails.
+    // Every local address the Mac has reported, tried in turn when one fails.
     var hosts: [String]? = nil
-
-    var tailscaleHost: String? {
-        hosts?.first { h in
-            let p = h.split(separator: ".").compactMap { Int($0) }
-            return p.count == 4 && p[0] == 100 && (64...127).contains(p[1])
-        }
-    }
 
     // The certificate fingerprint identifies a Mac's bridge.
     var id: String { fingerprint }
