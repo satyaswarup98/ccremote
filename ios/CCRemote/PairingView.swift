@@ -27,9 +27,9 @@ struct PairingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 header
+                howTo
                 macPicker
                 if target != nil { codeEntry.transition(.opacity.combined(with: .move(edge: .bottom))) }
-                howTo
             }
             .padding(24)
             .animation(.snappy, value: target != nil)
@@ -154,18 +154,21 @@ struct PairingView: View {
                 .strokeBorder(current ? Theme.accent : (error != nil ? Theme.red.opacity(0.6) : Theme.stroke), lineWidth: current ? 2 : 1))
     }
 
+    static let installCommand = "curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash -s -- bridge && ~/ccremote/setup.sh pair"
+
     private var howTo: some View {
         Card {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("On your Mac, run", systemImage: "terminal")
-                    .font(.subheadline.weight(.semibold))
-                Text("ccr pair")
-                    .font(.body.monospaced().weight(.semibold))
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(Theme.terminalBackground, in: RoundedRectangle(cornerRadius: 8))
-                    .foregroundStyle(Theme.accent)
-                Text("It shows a 6-digit code valid for 5 minutes. Your iPhone and Mac need to be on the same Wi-Fi (or both on Tailscale).")
-                    .font(.footnote).foregroundStyle(Theme.secondary)
+            VStack(alignment: .leading, spacing: 14) {
+                Label("Set up your Mac", systemImage: "terminal")
+                    .font(.headline)
+                CommandStep(number: 1, title: "First time on this Mac? Paste this into Terminal:",
+                            command: Self.installCommand, note: "Installs the CC Remote bridge, then shows a pairing code. Needs Homebrew and Claude Code on the Mac.")
+                CommandStep(number: 2, title: "Already set up? Just run:", command: "ccr pair",
+                            note: "Shows a new 6-digit code, valid for 5 minutes.")
+                Label("Copy here, then press ⌘V in Terminal on the Mac. This works when the iPhone and Mac are signed in to the same Apple ID with Handoff on. Otherwise use Share to AirDrop it.", systemImage: "info.circle")
+                    .font(.caption).foregroundStyle(Theme.secondary)
+                Text("The iPhone and Mac need to be on the same Wi-Fi (or both on Tailscale).")
+                    .font(.caption).foregroundStyle(Theme.secondary)
             }
         }
     }
@@ -205,5 +208,52 @@ struct AppGlyph: View {
         .foregroundStyle(.white)
         .frame(width: size, height: size)
         .shadow(color: Theme.accent.opacity(0.4), radius: 14, y: 6)
+    }
+}
+
+struct CommandStep: View {
+    let number: Int
+    let title: String
+    let command: String
+    let note: String
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(number)").font(.caption.weight(.bold)).frame(width: 20, height: 20)
+                    .background(Theme.accent.opacity(0.2), in: Circle()).foregroundStyle(Theme.accent)
+                Text(title).font(.subheadline.weight(.medium))
+            }
+            Text(command)
+                .font(.caption.monospaced())
+                .foregroundStyle(Theme.accent)
+                .textSelection(.enabled)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.terminalBackground, in: RoundedRectangle(cornerRadius: 8))
+            HStack(spacing: 10) {
+                Button {
+                    UIPasteboard.general.string = command
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    withAnimation { copied = true }
+                    Task { try? await Task.sleep(for: .seconds(2)); withAnimation { copied = false } }
+                } label: {
+                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(copied ? Theme.green.opacity(0.25) : Theme.accent, in: Capsule())
+                        .foregroundStyle(.white)
+                }
+                ShareLink(item: command) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(Theme.cardRaised, in: Capsule())
+                        .foregroundStyle(Theme.text)
+                }
+            }
+            Text(note).font(.caption).foregroundStyle(Theme.secondary)
+        }
     }
 }
