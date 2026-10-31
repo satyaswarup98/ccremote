@@ -253,8 +253,11 @@ final class BridgeClient {
         switch ns.code {
         case NSURLErrorCannotConnectToHost, NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost:
             return "Can't reach the Mac. Same Wi-Fi? Is the bridge running (ccr status)?"
-        case NSURLErrorCancelled, NSURLErrorServerCertificateUntrusted, NSURLErrorSecureConnectionFailed:
-            return "The Mac's security key changed. Re-pair from Settings."
+        case NSURLErrorCancelled:
+            // Our pinning check cancels the connection when the certificate isn't this Mac's.
+            return "Something other than your Mac answered, or the Mac's security key changed. If it keeps happening, re-pair from Settings."
+        case NSURLErrorServerCertificateUntrusted, NSURLErrorSecureConnectionFailed:
+            return "Couldn't make a secure connection to the Mac. Check that it's on and that Tailscale is connected on both."
         case NSURLErrorBadServerResponse:
             return "The Mac refused this iPhone. Re-pair from Settings."
         default:

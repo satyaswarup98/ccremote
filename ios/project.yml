@@ -35,7 +35,10 @@ targets:
         UIUserInterfaceStyle: Dark
         NSLocalNetworkUsageDescription: CC Remote connects to the bridge on your Mac to control your Claude Code sessions.
         NSBonjourServices: [_ccremote._tcp]
+        # Every connection is TLS pinned to the Mac's own certificate (PinningDelegate). ATS would reject that
+        # self-signed certificate on Tailscale addresses (100.64.0.0/10 isn't "local" to iOS), so it's off.
         NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
           NSAllowsLocalNetworking: true
         LSApplicationQueriesSchemes: [ntfy]
         CFBundleURLTypes:
