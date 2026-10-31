@@ -93,7 +93,7 @@ struct ToastOverlay: View {
                 Text(t.text).font(.subheadline).fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
-            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .padding(.horizontal, 20)
             .padding(.top, 6)
             .transition(.move(edge: .top).combined(with: .opacity))

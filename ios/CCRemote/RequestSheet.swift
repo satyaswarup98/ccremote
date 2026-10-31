@@ -38,8 +38,8 @@ struct PermissionForm: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(spacing: 14) {
                     Image(systemName: "lock.shield.fill").font(.largeTitle).foregroundStyle(Theme.accent)
                     VStack(alignment: .leading) {
                         Text("Claude wants to use").font(.subheadline).foregroundStyle(Theme.secondary)
@@ -49,7 +49,7 @@ struct PermissionForm: View {
                 DetailView(detail: request.detail, fallback: request.summary)
 
                 if request.canAnswerFromPhone {
-                    VStack(spacing: 10) {
+                    VStack(spacing: 12) {
                         Button("Allow") { act { client.allow(request) } }.buttonStyle(PrimaryButtonStyle(color: Theme.green.opacity(0.85)))
                         ForEach(request.suggestions ?? []) { s in
                             Button(s.label) { act { client.allow(request, suggestion: s.index) } }
@@ -79,7 +79,7 @@ struct PermissionForm: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(22)
         }
     }
 
@@ -192,7 +192,7 @@ struct QuestionForm: View {
                 Group {
                     if onSubmitPage { review } else { questionPage(questions[page]) }
                 }
-                .padding(20)
+                .padding(.horizontal, 22).padding(.vertical, 22)
                 .id(page)
                 .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
                                         removal: .opacity))
@@ -216,7 +216,7 @@ struct QuestionForm: View {
                     tab(title: "Submit", done: false, selected: onSubmitPage, icon: "paperplane.fill") { go(submitPage) }
                         .id(submitPage)
                 }
-                .padding(.horizontal, 16).padding(.vertical, 10)
+                .padding(.horizontal, 20).padding(.vertical, 12)
             }
             .onChange(of: page) { _, p in withAnimation { proxy.scrollTo(p, anchor: .center) } }
         }
@@ -233,9 +233,9 @@ struct QuestionForm: View {
                 Text(title).lineLimit(1)
             }
             .font(.subheadline.weight(.semibold))
-            .padding(.horizontal, 14).padding(.vertical, 8)
+            .padding(.horizontal, 16).padding(.vertical, 10)
             .foregroundStyle(selected ? .white : Theme.text)
-            .glassEffect(selected ? .regular.tint(Theme.accent.opacity(0.85)).interactive() : .regular.interactive(), in: Capsule())
+            .glassEffect(selected ? .clear.tint(Theme.accent.opacity(0.85)).interactive() : .clear.interactive(), in: Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -243,7 +243,7 @@ struct QuestionForm: View {
     // MARK: Pages
 
     private func questionPage(_ q: Question) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("Question \(page + 1) of \(questions.count)")
                 .font(.caption.weight(.semibold)).foregroundStyle(Theme.secondary)
             Text(q.question).font(.title3.weight(.semibold))
@@ -254,8 +254,8 @@ struct QuestionForm: View {
             TextField("Other…", text: Binding(get: { other[q.question] ?? "" }, set: { other[q.question] = $0 }), axis: .vertical)
                 .lineLimit(1...4)
                 .focused($otherFocused)
-                .padding(12)
-                .glassPanel(cornerRadius: 14, tint: (other[q.question] ?? "").isEmpty ? nil : Theme.accent.opacity(0.25))
+                .padding(16)
+                .glassPanel(cornerRadius: 20, tint: (other[q.question] ?? "").isEmpty ? nil : Theme.accent.opacity(0.25))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -279,8 +279,8 @@ struct QuestionForm: View {
                         Spacer()
                         Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.secondary)
                     }
-                    .padding(14)
-                    .glassPanel(cornerRadius: 16, interactive: true)
+                    .padding(18)
+                    .glassPanel(cornerRadius: 22, interactive: true)
                 }
                 .buttonStyle(.plain)
             }
@@ -314,7 +314,7 @@ struct QuestionForm: View {
                 .buttonStyle(PrimaryButtonStyle())
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 10)
+        .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 14)
     }
 
     private func optionButton(_ q: Question, _ o: QuestionOption) -> some View {
@@ -347,8 +347,8 @@ struct QuestionForm: View {
                 }
                 Spacer()
             }
-            .padding(14)
-            .glassPanel(cornerRadius: 16, tint: on ? Theme.accent.opacity(0.35) : nil, interactive: true)
+            .padding(.horizontal, 18).padding(.vertical, 16)
+            .glassPanel(cornerRadius: 22, tint: on ? Theme.accent.opacity(0.35) : nil, interactive: true)
         }
         .buttonStyle(.plain)
     }

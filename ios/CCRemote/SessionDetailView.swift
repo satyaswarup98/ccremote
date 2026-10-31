@@ -95,7 +95,7 @@ struct SessionDetailView: View {
                     .font(.caption2.monospaced()).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.head)
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 8)
+        .padding(.horizontal, 20).padding(.vertical, 10)
     }
 }
 
@@ -112,7 +112,7 @@ struct ChatTranscript: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
+                LazyVStack(alignment: .leading, spacing: 14) {
                     if items.isEmpty {
                         Text(session.lastMessage ?? "Waiting for activity…")
                             .font(.subheadline).foregroundStyle(Theme.secondary).padding(.top, 30)
@@ -136,7 +136,7 @@ struct ChatTranscript: View {
                     }
                     Color.clear.frame(height: 1).id("bottom")
                 }
-                .padding(16)
+                .padding(.horizontal, 20).padding(.vertical, 16)
             }
             .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.interactively)
@@ -156,8 +156,8 @@ struct UserBubble: View {
                 Text(text)
                     .font(.subheadline)
                     .textSelection(.enabled)
-                    .padding(.horizontal, 14).padding(.vertical, 10)
-                    .glassPanel(tint: Theme.accent.opacity(0.35))
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .glassPanel(cornerRadius: 22, tint: Theme.accent.opacity(0.35))
                 if fromPhone {
                     Label("sent from phone", systemImage: "iphone")
                         .font(.caption2).foregroundStyle(Theme.secondary)
@@ -216,8 +216,8 @@ struct ToolRow: View {
                     .background(Theme.terminalBackground, in: RoundedRectangle(cornerRadius: 8))
             }
         }
-        .padding(.horizontal, 10).padding(.vertical, 8)
-        .glassPanel(cornerRadius: 12)
+        .padding(.horizontal, 14).padding(.vertical, 11)
+        .glassPanel(cornerRadius: 16)
     }
 }
 
@@ -269,7 +269,7 @@ struct KeyBar: View {
                     } label: {
                         Text(k.label).font(.system(size: 14, weight: .semibold, design: .monospaced))
                             .frame(minWidth: 38, minHeight: 34)
-                            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .glassEffect(.clear.interactive(), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -307,31 +307,31 @@ struct Composer: View {
             TextField(hint, text: $draft, axis: .vertical)
                 .lineLimit(1...6)
                 .focused(focused)
-                .padding(.horizontal, 14).padding(.vertical, 10)
-                .glassEffect(session.holdingForPhone ? .regular.tint(Theme.accent.opacity(0.25)).interactive() : .regular.interactive(),
-                             in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .padding(.horizontal, 18).padding(.vertical, 13)
+                .glassEffect(session.holdingForPhone ? .clear.tint(Theme.accent.opacity(0.25)).interactive() : .clear.interactive(),
+                             in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 .disabled(session.status == .ended)
             if focused.wrappedValue {
                 Button { focused.wrappedValue = false } label: {
                     Image(systemName: "keyboard.chevron.compact.down")
                         .font(.system(size: 16, weight: .semibold))
-                        .frame(width: 42, height: 42)
+                        .frame(width: 46, height: 46)
                         .foregroundStyle(Theme.text)
-                        .glassEffect(.regular.interactive(), in: Circle())
+                        .glassEffect(.clear.interactive(), in: Circle())
                 }
                 .transition(.scale.combined(with: .opacity))
             }
             Button(action: send) {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 17, weight: .bold))
-                    .frame(width: 42, height: 42)
+                    .frame(width: 46, height: 46)
                     .foregroundStyle(.white)
-                    .glassEffect(draft.isEmpty ? .regular.interactive() : .regular.tint(Theme.accent.opacity(0.9)).interactive(), in: Circle())
+                    .glassEffect(draft.isEmpty ? .clear.interactive() : .clear.tint(Theme.accent.opacity(0.9)).interactive(), in: Circle())
             }
             .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || session.status == .ended)
         }
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
+        .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 12)
         .animation(.snappy, value: focused.wrappedValue)
     }
 }

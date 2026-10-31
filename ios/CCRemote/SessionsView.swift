@@ -13,9 +13,8 @@ struct SessionsView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 22) {
                     ConnectionBanner()
-                    AwayCard()
                     if !client.pending.isEmpty {
                         section("NEEDS YOU")
                         ForEach(client.pending) { req in
@@ -29,8 +28,9 @@ struct SessionsView: View {
                         NavigationLink(value: s.id) { SessionRow(session: s) }.buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 18)
-                .padding(.bottom, 30)
+                .padding(.horizontal, 20)
+                .padding(.top, 6)
+                .padding(.bottom, 36)
                 .animation(.snappy, value: client.sessions.map(\.status))
             }
             .appBackground()
@@ -50,6 +50,7 @@ struct SessionsView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
                 }
+                ToolbarItem(placement: .topBarTrailing) { MacStatusButton() }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showNotifications = true } label: {
                         Image(systemName: client.hasUnreadNotifications ? "bell.badge" : "bell")
@@ -119,26 +120,26 @@ struct ConnectionBanner: View {
     }
 }
 
-// One line about the Mac. Away is automatic: when the Mac is locked or untouched for a couple of
-// minutes, finished turns stay open for your phone reply; while you use the Mac they end as usual.
-struct AwayCard: View {
+// The Mac's state as a toolbar icon; tap it for what that means. Away is automatic: when the Mac is
+// locked or untouched for a couple of minutes, finished turns stay open for your phone reply.
+struct MacStatusButton: View {
     @Environment(BridgeClient.self) private var client
 
     var body: some View {
         let locked = client.state?.locked ?? false
         let away = client.state?.away ?? false
-        let (icon, color, text): (String, Color, String) =
-            locked ? ("lock.fill", Theme.accent, "Mac locked: replies to finished turns go straight in")
-            : away ? ("iphone", Theme.accent, "Mac idle: replies to finished turns go straight in")
-            : ("laptopcomputer", Theme.secondary, "You're at the Mac")
-        if client.connection == .connected {
-            Label(text, systemImage: icon)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(color)
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .glassPanel(cornerRadius: 14, tint: color.opacity(0.18))
+        let connected = client.connection == .connected
+        let (icon, color, title, detail): (String, Color, String, String) =
+            !connected ? ("wifi.slash", Theme.secondary, "Not connected", "The Mac isn't reachable right now.")
+            : locked ? ("lock.fill", Theme.accent, "Mac locked", "When Claude finishes, the turn waits for your reply here, and your reply goes straight in.")
+            : away ? ("iphone", Theme.accent, "Mac idle", "Nobody has used the Mac for a while, so finished turns wait for your reply here.")
+            : ("laptopcomputer", Theme.text, "You're at the Mac", "Finished turns end as usual. Messages from here are typed into VS Code.")
+        Menu {
+            Section(title) { Text(detail) }
+        } label: {
+            Image(systemName: icon).foregroundStyle(color)
         }
+        .accessibilityLabel(title)
     }
 }
 
@@ -158,7 +159,7 @@ struct PendingRow: View {
             Spacer()
             Image(systemName: "chevron.right").foregroundStyle(Theme.secondary)
         }
-        .padding(16)
+        .padding(20)
         .glassPanel(tint: Theme.accent.opacity(0.3), interactive: true)
     }
 }
@@ -167,7 +168,7 @@ struct SessionRow: View {
     let session: SessionInfo
     var body: some View {
         Card {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(session.project).font(.headline)
                     tag
@@ -197,7 +198,7 @@ struct SessionRow: View {
         Text(session.entrypoint == "phone" ? "PHONE" : session.hasMirror ? "TERMINAL" : (session.isVSCode ? "VS CODE" : "CLI"))
             .font(.system(size: 9, weight: .bold))
             .padding(.horizontal, 6).padding(.vertical, 3)
-            .glassEffect(.regular, in: Capsule())
+            .glassEffect(.clear, in: Capsule())
             .foregroundStyle(Theme.secondary)
     }
 }

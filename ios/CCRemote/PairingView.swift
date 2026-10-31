@@ -25,7 +25,7 @@ struct PairingView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 32) {
                 header
                 howTo
                 macPicker
@@ -75,8 +75,8 @@ struct PairingView: View {
                         Image(systemName: selected == mac && !showManual ? "checkmark.circle.fill" : "circle")
                             .font(.title3).foregroundStyle(selected == mac && !showManual ? Theme.accent : Theme.secondary)
                     }
-                    .padding(16)
-                    .glassPanel(cornerRadius: 18, tint: selected == mac && !showManual ? Theme.accent.opacity(0.3) : nil, interactive: true)
+                    .padding(20)
+                    .glassPanel(cornerRadius: 24, tint: selected == mac && !showManual ? Theme.accent.opacity(0.3) : nil, interactive: true)
                 }
                 .buttonStyle(.plain)
             }
@@ -147,8 +147,8 @@ struct PairingView: View {
         return Text(filled ? String(chars[i]) : "")
             .font(.system(size: 28, weight: .semibold, design: .rounded))
             .frame(maxWidth: .infinity)
-            .frame(height: 58)
-            .glassPanel(cornerRadius: 14, tint: current ? Theme.accent.opacity(0.35) : (error != nil ? Theme.red.opacity(0.3) : nil))
+            .frame(height: 62)
+            .glassPanel(cornerRadius: 18, tint: current ? Theme.accent.opacity(0.35) : (error != nil ? Theme.red.opacity(0.3) : nil))
     }
 
     static let installCommand = "curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash"
@@ -163,9 +163,9 @@ struct PairingView: View {
             Text("Installs or updates CC Remote, then shows a 6-digit code.")
                 .font(.caption).foregroundStyle(Theme.secondary)
         }
-        .padding(18)
+        .padding(22)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassPanel(cornerRadius: 22)
+        .glassPanel(cornerRadius: 26)
     }
 
     private func submit() {
@@ -228,7 +228,7 @@ struct CommandBox: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(copied ? Theme.green : Theme.text)
                     .frame(width: 34, height: 34)
-                    .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .glassEffect(.clear.interactive(), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .contentTransition(.symbolEffect(.replace))
             }
             .accessibilityLabel(copied ? "Copied" : "Copy command")
