@@ -236,12 +236,20 @@ async function vscodeFocused() {
 }
 
 const isPromptBox = f => f.role === 'AXTextArea' && /message input/i.test(f.desc);
+
+// VS Code (Electron) only exposes what's inside its windows, like Claude's prompt box, to accessibility
+// tools after being asked via AXManualAccessibility. The flag resets whenever VS Code restarts.
+async function exposeVSCodeContents() {
+  await run('/usr/bin/osascript', ['-e', 'tell application "System Events" to tell process "Code" to set value of attribute "AXManualAccessibility" to true'], { timeout: 8000 }).catch(() => {});
+}
 const keys = lines => run('/usr/bin/osascript', ['-e', ['tell application "System Events"', ...lines, 'end tell'].join('\n')], { timeout: 8000 });
 const FOCUS_KEY = 'keystroke "k" using {control down, option down, shift down, command down}';
 
 // Puts `text` into the visible Claude chat's prompt box and presses Return, checking each step:
 // the cursor must be in the prompt box, and the box must hold the text before Return is pressed.
 async function typeIntoPromptBox(text, fail, { readyWaitMs = 3000, everyMs = 900 } = {}) {
+  await exposeVSCodeContents();
+  await new Promise(r => setTimeout(r, 300));
   let f = null;
   const until = Date.now() + readyWaitMs;
   for (;;) {
