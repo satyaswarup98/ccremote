@@ -219,15 +219,20 @@ export async function vscodeWindowTitles() {
 async function vscodeFocused() {
   const script = ['tell application "System Events" to tell process "Code"',
     'set f to value of attribute "AXFocusedUIElement"',
-    'set r to ""', 'set d to ""', 'set v to ""',
+    'set r to ""', 'set d to ""', 'set p to ""', 'set v to ""',
     'try', 'set r to value of attribute "AXRole" of f', 'end try',
     'try', 'set d to value of attribute "AXDescription" of f', 'end try',
+    'try', 'set p to value of attribute "AXPlaceholderValue" of f', 'end try',
     'try', 'set v to value of attribute "AXValue" of f', 'end try',
-    'return r & linefeed & d & linefeed & v', 'end tell'].join('\n');
+    'return r & linefeed & d & linefeed & p & linefeed & v', 'end tell'].join('\n');
   const { stdout } = await run('/usr/bin/osascript', ['-e', script], { timeout: 8000 });
-  const [role = '', desc = '', ...rest] = stdout.replace(/\n$/, '').split('\n');
+  const [role = '', desc = '', placeholder = '', ...rest] = stdout.replace(/\n$/, '').split('\n');
   const value = rest.join('\n');
-  return { role, desc, value: /Esc to focus or unfocus Claude/.test(value) ? '' : value };
+  // An empty box reports its grey hint as the value: "⌘ Esc to focus or unfocus Claude" when idle,
+  // "Queue another message…" while Claude works. That isn't text anyone typed.
+  const isHint = value.trim() === '' || (placeholder && value.trim() === placeholder.trim())
+    || /Esc to focus or unfocus Claude|^Queue another message/.test(value.trim());
+  return { role, desc, value: isHint ? '' : value };
 }
 
 const isPromptBox = f => f.role === 'AXTextArea' && /message input/i.test(f.desc);
