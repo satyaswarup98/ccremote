@@ -1,8 +1,8 @@
 #!/bin/bash
 # CC Remote one-line installer. Downloads (or updates) the project into ~/ccremote, then runs setup.sh.
 #
-#   curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash                 # full setup
-#   curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash -s -- bridge     # Mac bridge only
+#   curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash              # Mac: install/update + pairing code
+#   curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash -s -- all     # also build + install the iPhone app
 #
 # Uses curl + tar only (no git), so it works anywhere this command itself could be downloaded.
 set -euo pipefail
@@ -31,4 +31,5 @@ mkdir -p "$DIR"
 cp -R "$TMP/src/." "$DIR/"
 chmod +x "$DIR/setup.sh" "$DIR/install.sh" "$DIR/bridge/ccr.js" "$DIR/bridge/bin/cc" "$DIR/bridge/bin/ccr-hook"
 echo "Installed into ${DIR}"
-exec "$DIR/setup.sh" "${1:-all}"
+# Default is the Mac side + pairing: the command shown in the iPhone app, which already has the app.
+exec "$DIR/setup.sh" "${1:-bridge}"

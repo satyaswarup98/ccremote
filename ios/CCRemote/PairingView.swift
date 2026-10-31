@@ -38,18 +38,19 @@ struct PairingView: View {
         .onAppear { discovery.start() }
         .onDisappear { discovery.stop() }
         .onChange(of: discovery.found) { _, found in
-            if selected == nil, found.count == 1 { selected = found.first; codeFocused = true }
+            // Pre-select the only Mac, but leave the keyboard down until the code boxes are tapped.
+            if selected == nil, found.count == 1 { selected = found.first }
         }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            AppGlyph(size: 64)
-            Text("CC Remote").font(.system(size: 34, weight: .bold, design: .rounded))
-            Text("Approve prompts, answer Claude, and keep your Claude Code sessions moving from your iPhone.")
+        VStack(alignment: .leading, spacing: 12) {
+            AppGlyph(size: 56)
+            Text("CC Remote").font(.system(size: 32, weight: .bold, design: .rounded))
+            Text("Your Claude Code sessions, in your pocket.")
                 .font(.body).foregroundStyle(Theme.secondary)
         }
-        .padding(.top, 24)
+        .padding(.top, 20)
     }
 
     private var macPicker: some View {
@@ -81,7 +82,7 @@ struct PairingView: View {
                 .buttonStyle(.plain)
             }
             if discovery.found.isEmpty && !showManual {
-                Text("Looking for Macs on this Wi-Fi…").font(.subheadline).foregroundStyle(Theme.secondary)
+                Text("Looking for your Mac on this Wi-Fi…").font(.subheadline).foregroundStyle(Theme.secondary)
             }
             if showManual {
                 TextField("192.168.1.20 or Tailscale IP", text: $manualHost)
@@ -154,23 +155,22 @@ struct PairingView: View {
                 .strokeBorder(current ? Theme.accent : (error != nil ? Theme.red.opacity(0.6) : Theme.stroke), lineWidth: current ? 2 : 1))
     }
 
-    static let installCommand = "curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash -s -- bridge && ~/ccremote/setup.sh pair"
+    static let installCommand = "curl -fsSL https://raw.githubusercontent.com/satyaswarup98/ccremote/main/install.sh | bash"
 
     private var howTo: some View {
-        Card {
-            VStack(alignment: .leading, spacing: 14) {
-                Label("Set up your Mac", systemImage: "terminal")
-                    .font(.headline)
-                CommandStep(number: 1, title: "First time on this Mac? Paste this into Terminal:",
-                            command: Self.installCommand, note: "Installs the CC Remote bridge, then shows a pairing code. Needs Homebrew and Claude Code on the Mac.")
-                CommandStep(number: 2, title: "Already set up? Just run:", command: "ccr pair",
-                            note: "Shows a new 6-digit code, valid for 5 minutes.")
-                Label("Copy here, then press ⌘V in Terminal on the Mac. This works when the iPhone and Mac are signed in to the same Apple ID with Handoff on. Otherwise use Share to AirDrop it.", systemImage: "info.circle")
-                    .font(.caption).foregroundStyle(Theme.secondary)
-                Text("The iPhone and Mac need to be on the same Wi-Fi (or both on Tailscale).")
-                    .font(.caption).foregroundStyle(Theme.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Set up your Mac").font(.headline)
+                Text("Paste in Terminal on your Mac").font(.subheadline).foregroundStyle(Theme.secondary)
             }
+            CommandBox(command: Self.installCommand)
+            Text("Installs or updates CC Remote, then shows a 6-digit code.")
+                .font(.caption).foregroundStyle(Theme.secondary)
         }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Theme.stroke))
     }
 
     private func submit() {
@@ -211,49 +211,44 @@ struct AppGlyph: View {
     }
 }
 
-struct CommandStep: View {
-    let number: Int
-    let title: String
+// Terminal-style command with a small copy button in the corner.
+struct CommandBox: View {
     let command: String
-    let note: String
     @State private var copied = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(number)").font(.caption.weight(.bold)).frame(width: 20, height: 20)
-                    .background(Theme.accent.opacity(0.2), in: Circle()).foregroundStyle(Theme.accent)
-                Text(title).font(.subheadline.weight(.medium))
-            }
-            Text(command)
-                .font(.caption.monospaced())
-                .foregroundStyle(Theme.accent)
+        HStack(alignment: .top, spacing: 10) {
+            Text(Self.styled(command))
+                .font(.system(size: 12.5, design: .monospaced))
+                .lineSpacing(3)
                 .textSelection(.enabled)
-                .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.terminalBackground, in: RoundedRectangle(cornerRadius: 8))
-            HStack(spacing: 10) {
-                Button {
-                    UIPasteboard.general.string = command
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    withAnimation { copied = true }
-                    Task { try? await Task.sleep(for: .seconds(2)); withAnimation { copied = false } }
-                } label: {
-                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(copied ? Theme.green.opacity(0.25) : Theme.accent, in: Capsule())
-                        .foregroundStyle(.white)
-                }
-                ShareLink(item: command) {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(Theme.cardRaised, in: Capsule())
-                        .foregroundStyle(Theme.text)
-                }
+            Button {
+                UIPasteboard.general.string = command
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                withAnimation(.snappy) { copied = true }
+                Task { try? await Task.sleep(for: .seconds(1.8)); withAnimation(.snappy) { copied = false } }
+            } label: {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(copied ? Theme.green : Theme.text)
+                    .frame(width: 32, height: 32)
+                    .background(Theme.cardRaised, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .contentTransition(.symbolEffect(.replace))
             }
-            Text(note).font(.caption).foregroundStyle(Theme.secondary)
+            .accessibilityLabel(copied ? "Copied" : "Copy command")
         }
+        .padding(12)
+        .background(Theme.terminalBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.stroke))
+    }
+
+    // "$ " prompt in orange, command in terminal white.
+    static func styled(_ cmd: String) -> AttributedString {
+        var prompt = AttributedString("$ ")
+        prompt.foregroundColor = Theme.accent
+        var body = AttributedString(cmd)
+        body.foregroundColor = Theme.terminalText
+        return prompt + body
     }
 }
