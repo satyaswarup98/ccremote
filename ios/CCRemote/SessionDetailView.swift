@@ -60,10 +60,19 @@ struct SessionDetailView: View {
             }
         }
         .appBackground()
-        .navigationTitle(session?.title ?? session?.project ?? "")
+        .navigationTitle(session?.project ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let s = session { ToolbarItem(placement: .topBarTrailing) { SessionToolbarStatus(session: s) } }
+            if let s = session {
+                ToolbarItem(placement: .principal) { SessionTitle(session: s) }
+                if s.queued > 0 {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button("Clear \(s.queued) queued", role: .destructive) { client.clearQueue(s.id) }
+                        } label: { Image(systemName: "tray.full").foregroundStyle(Theme.amber) }
+                    }
+                }
+            }
         }
         .onAppear {
             client.subscribe(sessionId)
@@ -74,29 +83,55 @@ struct SessionDetailView: View {
     }
 }
 
-/// Compact status for the navigation bar: status pill, permission mode, and a queued count.
-struct SessionToolbarStatus: View {
+/// The session's name with a readable status line under it, centred in the navigation bar.
+struct SessionTitle: View {
     let session: SessionInfo
-    @Environment(BridgeClient.self) private var client
 
     var body: some View {
-        HStack(spacing: 6) {
-            if session.queued > 0 {
-                Button { client.clearQueue(session.id) } label: {
-                    Label("\(session.queued)", systemImage: "tray.full").font(.caption2.weight(.semibold))
-                }
-                .tint(Theme.amber)
-                .accessibilityLabel("\(session.queued) queued. Tap to clear.")
+        VStack(spacing: 1) {
+            Text(session.displayTitle)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+            HStack(spacing: 5) {
+                Circle().fill(Theme.color(for: session.status)).frame(width: 6, height: 6)
+                    .modifier(Pulse(active: session.status == .working || session.status.needsYou))
+                Text(detail).lineLimit(1)
             }
-            if let mode = session.permissionMode, mode != "default" {
-                Text(Self.short(mode)).font(.caption2.weight(.semibold)).foregroundStyle(Theme.secondary)
-            }
-            StatusPill(status: session.status, compact: true)
+            .font(.caption2)
+            .foregroundStyle(Theme.secondary)
+        }
+        .frame(maxWidth: 260)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var detail: String {
+        var parts = [session.project, Self.statusText(session.status)]
+        if let mode = session.permissionMode, mode != "default" { parts.append(Self.modeText(mode)) }
+        if session.queued > 0 { parts.append("\(session.queued) queued") }
+        return parts.joined(separator: " · ")
+    }
+
+    static func statusText(_ s: SessionStatus) -> String {
+        switch s {
+        case .working: "Working"
+        case .idle: "Idle"
+        case .ended: "Ended"
+        case .needsPermission: "Needs your approval"
+        case .needsAnswer: "Has a question"
+        case .waitingInput: "Waiting for your reply"
+        case .unknown: ""
         }
     }
 
-    static func short(_ mode: String) -> String {
-        switch mode { case "acceptEdits": "edits"; case "bypassPermissions": "bypass"; default: mode }
+    static func modeText(_ mode: String) -> String {
+        switch mode {
+        case "auto": "Auto mode"
+        case "plan": "Plan mode"
+        case "acceptEdits": "Accepting edits"
+        case "bypassPermissions": "Bypassing permissions"
+        case "dontAsk": "Don't ask"
+        default: mode
+        }
     }
 }
 
