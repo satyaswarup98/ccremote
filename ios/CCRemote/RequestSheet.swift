@@ -394,6 +394,24 @@ enum QuestionDemo {
     }
 }
 
+struct TableDemoView: View {
+    var body: some View {
+        ScrollView {
+            AssistantBlock(text: """
+            Here's the comparison:
+
+            | Option | What it does | Downside |
+            |---|---|---|
+            | Run now in a Terminal copy | Starts a copy of the conversation in Terminal with your message as the next prompt and runs it immediately with the full history | The original VS Code session doesn't see it, and the copy needs the folder trusted first |
+            | Queue | Holds the message until Claude stops | Waits |
+            | Send to VS Code | Types into the real chat | Needs the Mac unlocked and the chat visible in a window on the current desktop or in the Window menu |
+            """)
+            .padding(20)
+        }
+        .appBackground()
+    }
+}
+
 struct QuestionDemoView: View {
     var body: some View {
         NavigationStack {

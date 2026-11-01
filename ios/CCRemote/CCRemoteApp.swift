@@ -60,6 +60,8 @@ struct RootView: View {
             #if DEBUG
             if ProcessInfo.processInfo.environment["CCR_DEMO"] == "questions" {
                 QuestionDemoView()
+            } else if ProcessInfo.processInfo.environment["CCR_DEMO"] == "table" {
+                TableDemoView()
             } else if client.pairing == nil {
                 PairingView()
                     .transition(.opacity)

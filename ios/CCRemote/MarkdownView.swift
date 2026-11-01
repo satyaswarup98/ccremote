@@ -165,33 +165,51 @@ struct TableBlock: View {
     let header: [String]
     let rows: [[String]]
 
+    // Each column gets a definite width from its longest text (between 70 and 200 pt), so long text
+    // wraps inside its cell and the row grows taller. (A max-width alone doesn't stop text from
+    // overflowing into the next cell inside a horizontal scroll view.)
+    private var columnWidths: [CGFloat] {
+        header.indices.map { c in
+            let longest = ([header[c]] + rows.map { c < $0.count ? $0[c] : "" })
+                .map { Markdown.inline($0).characters.count }
+                .max() ?? 0
+            return min(200, max(70, CGFloat(longest) * 6.4))
+        }
+    }
+
     var body: some View {
+        let widths = columnWidths
         ScrollView(.horizontal, showsIndicators: false) {
-            Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
+            Grid(alignment: .topLeading, horizontalSpacing: 0, verticalSpacing: 0) {
                 GridRow {
                     ForEach(header.indices, id: \.self) { c in
-                        cell(header[c]).font(.caption.weight(.semibold)).background(Theme.cardRaised)
+                        cell(header[c], width: widths[c]).font(.caption.weight(.semibold))
+                            .background(Theme.cardRaised.opacity(0.7))
                     }
                 }
                 ForEach(rows.indices, id: \.self) { r in
                     GridRow {
-                        ForEach(rows[r].indices, id: \.self) { c in
-                            cell(rows[r][c]).font(.caption)
-                                .background(r % 2 == 1 ? Theme.card.opacity(0.6) : Color.clear)
+                        ForEach(header.indices, id: \.self) { c in
+                            cell(c < rows[r].count ? rows[r][c] : "", width: widths[c]).font(.caption)
+                                .background(r % 2 == 1 ? Theme.card.opacity(0.45) : Color.clear)
                         }
                     }
                 }
             }
-            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.stroke))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            // Natural height for the whole table, so rows size to their tallest cell and nothing is cut off.
+            .fixedSize(horizontal: false, vertical: true)
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.stroke))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
 
-    private func cell(_ s: String) -> some View {
+    private func cell(_ s: String, width: CGFloat) -> some View {
         Text(Markdown.inline(s))
-            .frame(minWidth: 70, maxWidth: 260, alignment: .leading)
+            .lineSpacing(2)
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 10).padding(.vertical, 7)
+            .frame(width: width, alignment: .topLeading)
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .frame(maxHeight: .infinity, alignment: .topLeading)   // cells in a row share the tallest height
             .overlay(Rectangle().stroke(Theme.stroke, lineWidth: 0.5))
     }
 }
