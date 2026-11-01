@@ -31,8 +31,9 @@ export function toolSummary(name, input = {}) {
   }
 }
 
+// Messages Claude Code adds itself (slash-command echoes, reminders, background-task notices…), not typed by you.
 function isNoise(text) {
-  return /^\s*<(command-name|command-message|command-args|local-command-stdout|system-reminder|ide_selection|ide_opened_file)/.test(text)
+  return /^\s*<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat|system-reminder|ide_selection|ide_opened_file|task-notification|bash-input|bash-stdout|bash-stderr|user-prompt-submit-hook)/.test(text)
     || text.startsWith('Caveat: The messages below');
 }
 
