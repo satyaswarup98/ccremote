@@ -879,6 +879,15 @@ async function onPhoneMessage(ws, c, m) {
         log(`vscode send held back for ${s.project}: approval or question open`);
         return report('failed', 'Claude is waiting on an approval or question in this chat. Answer it first, then send again.');
       }
+      // macOS blocks typing into apps behind the lock screen. Instead of queuing, continue the chat as a
+      // background copy (claude -p --resume … --fork-session) and open the copy on the phone.
+      if (vscodeChat && (locked || await macLocked())) {
+        const title = `Copy: ${tails.get(s.id)?.title ?? s.title ?? s.project}`.slice(0, 80);
+        runPhoneTurn(ws, { cwd: s.rootDir ?? s.cwd, text, resumeId: s.id, fork: true, title });
+        log(`phone message -> ${s.project} (Mac locked: background copy)`);
+        toast(ws, 'The Mac is locked, so this runs in a background copy of the chat. Opening it here…');
+        return report('sent');
+      }
       if (vscodeChat) return sendToVSCode(ws, s, text, { queueOnFail: true, report });
       if (hold) {
         log(`phone message -> ${s.project} (via held Stop)`);
@@ -1025,15 +1034,16 @@ const phoneSessions = new Map(Object.entries((() => { try { return JSON.parse(fs
 const savePhoneSessions = () => fs.writeFileSync(PHONE_SESSIONS_FILE, JSON.stringify(Object.fromEntries(phoneSessions), null, 2));
 const running = new Map();   // sessionId -> child process of the turn in progress
 
-function runPhoneTurn(ws, { cwd, text, resumeId = null, title = null }) {
+// fork: continue `resumeId` as a new copy (the original chat is left as it is).
+function runPhoneTurn(ws, { cwd, text, resumeId = null, title = null, fork = false }) {
   const bin = findClaudeBinary();
   if (!bin) return toast(ws, 'Could not find the claude program on the Mac.', 'error');
   const origin = crypto.randomBytes(8).toString('hex');
-  const launch = { ws, headless: true, cwd, title, sessionId: resumeId };
+  const launch = { ws, headless: true, cwd, title, sessionId: fork ? null : resumeId };
   launches.set(origin, launch);
-  const args = resumeId ? ['-p', '--resume', resumeId, text] : ['-p', text];
+  const args = !resumeId ? ['-p', text] : fork ? ['-p', '--resume', resumeId, '--fork-session', text] : ['-p', '--resume', resumeId, text];
   const child = spawn(bin, args, { cwd, stdio: 'ignore', env: { ...process.env, ...claudeEnvFromVSCode(), CCR_ORIGIN: origin } });
-  if (resumeId) running.set(resumeId, child);
+  if (resumeId && !fork) running.set(resumeId, child);
   log(`phone ${resumeId ? 'continued' : 'started'} a session in ${cwd} (pid ${child.pid})`);
   child.on('error', e => { launches.delete(origin); toast(ws, `Couldn't start Claude: ${e.message}`, 'error'); });
   child.on('exit', code => {
