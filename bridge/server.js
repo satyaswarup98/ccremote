@@ -192,7 +192,32 @@ function pidAlive(pid) {
   try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
 }
 
+// Sessions started or continued from the phone run as short background processes, so after the bridge
+// restarts nothing points at them any more. Bring back the ones changed in the last 7 days, as idle.
+function restorePhoneSessions() {
+  if (typeof phoneSessions === 'undefined') return false;
+  let added = false;
+  for (const [id, p] of phoneSessions) {
+    if (sessions.has(id)) continue;
+    const file = findTranscript(id);
+    if (!file) continue;
+    let mtime = 0;
+    try { mtime = fs.statSync(file).mtimeMs; } catch { continue; }
+    if (Date.now() - mtime > 7 * 86400e3) continue;
+    const s = {
+      id, cwd: p.cwd, rootDir: p.cwd, project: path.basename(p.cwd) || '~', title: p.title ?? null,
+      entrypoint: 'phone', phone: true, termId: null, status: 'idle', activity: null, lastMessage: null,
+      lastPrompt: null, permissionMode: null, startedAt: mtime, updatedAt: mtime, transcriptPath: file, lastHookAt: 0,
+    };
+    sessions.set(id, s);
+    pollTranscript(s);
+    added = true;
+  }
+  return added;
+}
+
 function scanRegistry() {
+  if (restorePhoneSessions()) broadcastState();
   let files = [];
   try { files = fs.readdirSync(REGISTRY_DIR).filter(f => f.endsWith('.json')); } catch { return; }
   const alive = new Set();
@@ -866,7 +891,7 @@ async function onPhoneMessage(ws, c, m) {
       const hold = [...pending.values()].find(p => p.info.sessionId === s.id && p.info.kind === 'stop');
       if (s.phone && !hold) {
         if (running.has(s.id)) return enqueue('Claude gets it as soon as this step finishes.');
-        runPhoneTurn(ws, { cwd: s.rootDir ?? s.cwd, text, resumeId: s.id });
+        runPhoneTurn(ws, { cwd: s.rootDir ?? s.cwd, text, resumeId: s.id, permissionMode: s.permissionMode });
         s.status = 'working'; s.activity = 'Thinking…'; s.lastPrompt = text.slice(0, 500); broadcastState();
         return report('sent');
       }
@@ -883,7 +908,7 @@ async function onPhoneMessage(ws, c, m) {
       // background copy (claude -p --resume … --fork-session) and open the copy on the phone.
       if (vscodeChat && (locked || await macLocked())) {
         const title = `Copy: ${tails.get(s.id)?.title ?? s.title ?? s.project}`.slice(0, 80);
-        runPhoneTurn(ws, { cwd: s.rootDir ?? s.cwd, text, resumeId: s.id, fork: true, title });
+        runPhoneTurn(ws, { cwd: s.rootDir ?? s.cwd, text, resumeId: s.id, fork: true, title, permissionMode: s.permissionMode });
         log(`phone message -> ${s.project} (Mac locked: background copy)`);
         toast(ws, 'The Mac is locked, so this runs in a background copy of the chat. Opening it here…');
         return report('sent');
@@ -1035,16 +1060,25 @@ const savePhoneSessions = () => fs.writeFileSync(PHONE_SESSIONS_FILE, JSON.strin
 const running = new Map();   // sessionId -> child process of the turn in progress
 
 // fork: continue `resumeId` as a new copy (the original chat is left as it is).
-function runPhoneTurn(ws, { cwd, text, resumeId = null, title = null, fork = false }) {
+// Background runs (Mac locked, or sessions started from the phone) use the same permission mode as the
+// chat they continue, so they don't stop to ask about routine edits and commands. A chat that asks for
+// everything (default/manual), plan mode, or an unknown mode runs in "auto": Claude Code then only asks
+// when an action is risky. Questions for you still come to the phone in every mode.
+const HANDS_FREE_MODES = new Set(['auto', 'acceptEdits', 'bypassPermissions', 'dontAsk']);
+const handsFreeMode = mode => (HANDS_FREE_MODES.has(mode) ? mode : 'auto');
+
+function runPhoneTurn(ws, { cwd, text, resumeId = null, title = null, fork = false, permissionMode = null }) {
   const bin = findClaudeBinary();
   if (!bin) return toast(ws, 'Could not find the claude program on the Mac.', 'error');
   const origin = crypto.randomBytes(8).toString('hex');
   const launch = { ws, headless: true, cwd, title, sessionId: fork ? null : resumeId };
   launches.set(origin, launch);
-  const args = !resumeId ? ['-p', text] : fork ? ['-p', '--resume', resumeId, '--fork-session', text] : ['-p', '--resume', resumeId, text];
+  const mode = handsFreeMode(permissionMode);
+  const args = ['-p', '--permission-mode', mode,
+    ...(resumeId ? ['--resume', resumeId] : []), ...(fork ? ['--fork-session'] : []), text];
   const child = spawn(bin, args, { cwd, stdio: 'ignore', env: { ...process.env, ...claudeEnvFromVSCode(), CCR_ORIGIN: origin } });
   if (resumeId && !fork) running.set(resumeId, child);
-  log(`phone ${resumeId ? 'continued' : 'started'} a session in ${cwd} (pid ${child.pid})`);
+  log(`phone ${resumeId ? 'continued' : 'started'} a session in ${cwd} (pid ${child.pid}, ${mode} mode)`);
   child.on('error', e => { launches.delete(origin); toast(ws, `Couldn't start Claude: ${e.message}`, 'error'); });
   child.on('exit', code => {
     launches.delete(origin);
