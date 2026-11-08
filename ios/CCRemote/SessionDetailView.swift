@@ -163,7 +163,7 @@ struct ChatTranscript: View {
                     ForEach(items.filter { $0.kind != "result" }) { item in
                         switch item.kind {
                         case "user": UserBubble(text: item.text ?? "", fromPhone: item.fromPhone ?? false)
-                        case "assistant": AssistantBlock(text: item.text ?? "")
+                        case "assistant": AssistantBlock(text: item.text ?? "", showActions: true)
                         case "tool": ToolRow(item: item, result: item.toolUseId.flatMap { res[$0] })
                         default: EmptyView()
                         }
@@ -292,7 +292,13 @@ struct OutgoingBubble: View {
 
 struct AssistantBlock: View {
     let text: String
-    var body: some View { MarkdownView(text: text) }
+    var showActions = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            MarkdownView(text: text)
+            if showActions { ReplyActions(markdown: text) }
+        }
+    }
 }
 
 struct ToolRow: View {

@@ -407,6 +407,29 @@ struct TableDemoView: View {
             | Send to VS Code | Types into the real chat | Needs the Mac unlocked and the chat visible in a window on the current desktop or in the Window menu |
             """)
             .padding(20)
+            // What Copy / Share produces for WhatsApp:
+            Text(ShareText.whatsApp("""
+            ## Plan
+            **Bold**, *italic* and `code`, see [docs](https://example.com).
+
+            - one
+            - two
+
+            | City | Days |
+            |---|---|
+            | Penang | 3 |
+            | Bali | 5 |
+            """) + "\n\n— wide table —\n\n" + ShareText.whatsApp("""
+            | Option | What it does | Downside |
+            |---|---|---|
+            | Queue | Holds the message until Claude stops | Waits |
+            | Send to VS Code | Types into the real chat | Needs the Mac unlocked |
+            """))
+            .font(.caption.monospaced())
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 20)
         }
         .appBackground()
     }
